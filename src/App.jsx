@@ -354,6 +354,16 @@ export default function App() {
     setPdlLoading(false);
   }, [filters, searchQuery]);
 
+  // Re-run PDL search when filters or query change while in live mode
+  useEffect(() => {
+    if (!useLiveData) return;
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      runPDLSearch(1, false);
+    }, 600);
+    return () => clearTimeout(debounceRef.current);
+  }, [filters, searchQuery, useLiveData]);
+
   // Mock data filtered locally
   const mockFiltered = MOCK_CONTACTS.filter(c => {
     const q = searchQuery.toLowerCase();
