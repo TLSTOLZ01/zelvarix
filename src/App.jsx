@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { searchPeople, enrichPerson } from "./pdl-integration.js";
 import { createClient } from "@supabase/supabase-js";
 
 // ─── SUPABASE CLIENT ─────────────────────────────────────────────────────────
@@ -306,6 +307,14 @@ export default function App() {
   const [savedIds, setSavedIds]       = useState(new Set());
   const [selectedForExport, setSelectedForExport] = useState(new Set());
   const [selectMode, setSelectMode]   = useState(false);
+  const [pdlContacts, setPdlContacts]   = useState([]);
+  const [pdlTotal, setPdlTotal]         = useState(0);
+  const [pdlLoading, setPdlLoading]     = useState(false);
+  const [pdlError, setPdlError]         = useState(null);
+  const [pdlPage, setPdlPage]           = useState(1);
+  const [pdlHasMore, setPdlHasMore]     = useState(false);
+  const [useLiveData, setUseLiveData]   = useState(false);
+  const debounceRef                     = useRef(null);
   const [lists, setLists]             = useState([{ id:1, name:"Hot Prospects Q2", count:3 }, { id:2, name:"Enterprise Targets", count:12 }]);
   const [teamMembers, setTeamMembers] = useState(MOCK_TEAM);
   const [activeUserId, setActiveUserId] = useState(1);
@@ -328,7 +337,25 @@ export default function App() {
   const activeUser = teamMembers.find(u => u.id === activeUserId) || teamMembers[0];
   const perms      = ROLE_PERMISSIONS[activeUser.role];
 
-  const filteredContacts = MOCK_CONTACTS.filter(c => {
+  // Live PDL search function
+  const runPDLSearch = useCallback(async (page = 1, append = false) => {
+    setPdlLoading(true);
+    setPdlError(null);
+    try {
+      const result = await searchPeople({ filters, query: searchQuery, page, pageSize: 5 });
+      setPdlContacts(prev => append ? [...prev, ...result.contacts] : result.contacts);
+      setPdlTotal(result.total);
+      setPdlHasMore(result.hasMore);
+      setPdlPage(page);
+    } catch(err) {
+      setPdlError("Live search unavailable — showing sample data.");
+      setUseLiveData(false);
+    }
+    setPdlLoading(false);
+  }, [filters, searchQuery]);
+
+  // Mock data filtered locally
+  const mockFiltered = MOCK_CONTACTS.filter(c => {
     const q = searchQuery.toLowerCase();
     const mQ = !q || c.name.toLowerCase().includes(q) || c.company.toLowerCase().includes(q) || c.title.toLowerCase().includes(q) || c.industry.toLowerCase().includes(q) || c.location.toLowerCase().includes(q);
     const mI = filters.industry === "All Industries" || c.industry === filters.industry;
@@ -339,7 +366,10 @@ export default function App() {
     return mQ && mI && mS && mSn && mD && mR;
   });
 
+  // Use live PDL data if toggled on, otherwise use mock
+  const filteredContacts = useLiveData ? pdlContacts : mockFiltered;
   const sorted = [...filteredContacts].sort((a,b) => b.score - a.score);
+  const displayTotal = useLiveData ? pdlTotal : mockFiltered.length;
 
   function toggleSave(id) { setSavedIds(p => { const n=new Set(p); n.has(id)?n.delete(id):n.add(id); return n; }); }
   function toggleExport(id) { setSelectedForExport(p => { const n=new Set(p); n.has(id)?n.delete(id):n.add(id); return n; }); }
@@ -914,7 +944,12 @@ export default function App() {
               {/* Toolbar */}
               <div style={{ padding:"10px 20px", borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"space-between", background:"#fff", flexShrink:0, gap:10 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <span style={{ fontSize:13, color:T.inkm }}><span style={{ fontFamily:"'DM Mono',monospace", color:T.green, fontWeight:500 }}>{sorted.length}</span> of {MOCK_CONTACTS.length}</span>
+                  <button onClick={()=>{ const next=!useLiveData; setUseLiveData(next); if(next) runPDLSearch(1,false); }} style={{ fontSize:11, fontWeight:600, padding:"4px 10px", border:`1px solid ${useLiveData?T.green:T.border}`, borderRadius:3, background:useLiveData?T.greenl:"#fff", color:useLiveData?T.green:T.inkm, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", gap:5 }}>
+                    <span style={{ width:7, height:7, borderRadius:"50%", background:useLiveData?T.green:T.inkmut, display:"inline-block", animation:useLiveData&&pdlLoading?"pulse 1s infinite":"none" }} />
+                    {useLiveData ? "Live Data" : "Sample Data"}
+                  </button>
+                  {pdlError && <span style={{ fontSize:11, color:T.amber }}>{pdlError}</span>}
+                  <span style={{ fontSize:13, color:T.inkm }}><span style={{ fontFamily:"'DM Mono',monospace", color:T.green, fontWeight:500 }}>{useLiveData ? displayTotal.toLocaleString() : sorted.length}</span> {useLiveData ? "live contacts" : `of ${MOCK_CONTACTS.length} samples`}</span>
                   <button onClick={()=>{ setSelectMode(s=>!s); setSelectedForExport(new Set()); }} style={{ fontSize:11, fontWeight:500, padding:"4px 10px", border:`1px solid ${selectMode?T.green:T.border}`, borderRadius:3, background:selectMode?T.greenl:"#fff", color:selectMode?T.green:T.inkm, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all .15s" }}>
                     {selectMode?"✓ Selecting":"Select"}
                   </button>
@@ -944,15 +979,19 @@ export default function App() {
 
               {/* Table rows */}
               <div style={{ flex:1, overflowY:"auto" }}>
-                {sorted.length===0
-                  ? (
-                    <div style={{ textAlign:"center", padding:"60px 20px" }}>
-                      <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.inkm, marginBottom:8 }}>No results found</div>
-                      <div style={{ fontSize:13, color:T.inkmut, marginBottom:16 }}>Try adjusting your filters or search term.</div>
-                      <button onClick={()=>{ setSearchQuery(""); setFilters({ industry:"All Industries", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue" }); }} style={{ fontSize:12, padding:"7px 16px", background:T.ink, border:"none", borderRadius:3, color:T.cream, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Clear filters</button>
-                    </div>
-                  )
-                  : sorted.map(c=>(
+                {pdlLoading && useLiveData && pdlContacts.length===0 ? (
+                  <div style={{ textAlign:"center", padding:"60px 20px" }}>
+                    <div style={{ width:32, height:32, border:`3px solid ${T.paperd}`, borderTopColor:T.green, borderRadius:"50%", animation:"spin .8s linear infinite", margin:"0 auto 14px" }} />
+                    <div style={{ fontSize:13, color:T.inkm }}>Searching live contacts…</div>
+                  </div>
+                ) : sorted.length===0 ? (
+                  <div style={{ textAlign:"center", padding:"60px 20px" }}>
+                    <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.inkm, marginBottom:8 }}>No results found</div>
+                    <div style={{ fontSize:13, color:T.inkmut, marginBottom:16 }}>Try adjusting your filters or search term.</div>
+                    <button onClick={()=>{ setSearchQuery(""); setFilters({ industry:"All Industries", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue" }); }} style={{ fontSize:12, padding:"7px 16px", background:T.ink, border:"none", borderRadius:3, color:T.cream, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Clear filters</button>
+                  </div>
+                ) : (
+                  <>{sorted.map(c=>(
                     <div key={c.id} className="row-hover" onClick={()=>setSelectedContact(selectedContact?.id===c.id?null:c)} style={{ display:"grid", gridTemplateColumns:`${selectMode?"28px ":""}2.2fr 1.4fr 1fr 0.7fr 0.7fr 80px 60px`, padding:"9px 20px", borderBottom:`1px solid ${T.border}`, alignItems:"center", cursor:"pointer", background:selectedContact?.id===c.id?T.greenl:"#fff", transition:"background .1s" }}>
                       {selectMode && (
                         <div onClick={e=>{e.stopPropagation();toggleExport(c.id);}} style={{ width:16, height:16, borderRadius:3, border:`1.5px solid ${selectedForExport.has(c.id)?T.green:T.borderd}`, background:selectedForExport.has(c.id)?T.green:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"all .1s" }}>
@@ -977,8 +1016,14 @@ export default function App() {
                         <button onClick={e=>{e.stopPropagation();toggleSave(c.id);}} style={{ width:26, height:26, background:savedIds.has(c.id)?T.amberl:"#fff", border:`1px solid ${savedIds.has(c.id)?T.amberb:T.border}`, borderRadius:3, cursor:"pointer", fontSize:12, color:savedIds.has(c.id)?T.amber:T.inkmut, display:"flex", alignItems:"center", justifyContent:"center" }}>{savedIds.has(c.id)?"★":"☆"}</button>
                       </div>
                     </div>
-                  ))
-                }
+                  ))}
+                  {useLiveData && pdlHasMore && (
+                    <button onClick={()=>runPDLSearch(pdlPage+1, true)} disabled={pdlLoading} style={{ width:"100%", padding:"10px", margin:"8px 0 16px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:5, color:T.inkl, fontWeight:500, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+                      {pdlLoading ? "Loading…" : "Load more contacts"}
+                    </button>
+                  )}
+                  </>
+                )}
               </div>
             </div>
 
