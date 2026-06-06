@@ -8,6 +8,9 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: 'PDL_API_KEY not configured' });
 
   try {
+    const body = req.body || {};
+    const scroll_token = body.scroll_token || null;
+
     const payload = {
       query: {
         bool: {
@@ -17,10 +20,11 @@ export default async function handler(req, res) {
         }
       },
       size: 5,
-      from: 0,
       pretty: false,
       required: "job_title AND full_name"
     };
+
+    if (scroll_token) payload.scroll_token = scroll_token;
 
     const pdlRes = await fetch('https://api.peopledatalabs.com/v5/person/search', {
       method: 'POST',
@@ -33,7 +37,7 @@ export default async function handler(req, res) {
 
     const text = await pdlRes.text();
     console.log('PDL status:', pdlRes.status);
-    console.log('PDL response:', text.slice(0, 800));
+    console.log('PDL response preview:', text.slice(0, 300));
 
     const data = JSON.parse(text);
     return res.status(pdlRes.status).json(data);
