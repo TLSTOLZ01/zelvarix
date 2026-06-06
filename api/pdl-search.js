@@ -10,30 +10,30 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'POST') {
-      const body = req.body;
+      const size = (req.body && req.body.size) || 5;
+      const from = (req.body && req.body.from) || 0;
+
       const pdlRes = await fetch('https://api.peopledatalabs.com/v5/person/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Api-Key': apiKey,
         },
-        body: JSON.stringify({ sql: body.sql, size: body.size || 5, from: body.from || 0 }),
+        body: JSON.stringify({
+          query: {
+            bool: {
+              must: [
+                { exists: { field: "job_title" } }
+              ]
+            }
+          },
+          size: size,
+          from: from,
+        }),
       });
+
       const data = await pdlRes.json();
       return res.status(pdlRes.status).json(data);
-    }
-
-    if (req.method === 'GET') {
-      const params = new URLSearchParams();
-      if (req.query.pdl_id)  params.append('pdl_id',   req.query.pdl_id);
-      if (req.query.name)    params.append('name',     req.query.name);
-      if (req.query.company) params.append('company',  req.query.company);
-      if (req.query.profile) params.append('profile',  req.query.profile);
-      const pdlRes = await fetch('https://api.peopledatalabs.com/v5/person/enrich?' + params.toString(), {
-        headers: { 'X-Api-Key': apiKey },
-      });
-      const data = await pdlRes.json();
-      return res.status(pdlRes.status).json({ data: data });
     }
 
     return res.status(405).json({ error: 'Method not allowed' });
