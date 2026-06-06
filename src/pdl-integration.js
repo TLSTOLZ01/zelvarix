@@ -3,29 +3,21 @@ const PDL_PROXY = '/api/pdl-search';
 export function searchPeople(options) {
   const filters  = (options && options.filters)  || {};
   const query    = (options && options.query)    || '';
-  const page     = (options && options.page)     || 1;
   const pageSize = (options && options.pageSize) || 5;
-  const conds    = [];
+  const scrollToken = (options && options.scrollToken) || null;
 
-  if (query.trim()) conds.push("full_name LIKE '%" + query.trim() + "%'");
-  if (filters.industry && filters.industry !== 'All Industries') conds.push("job_company_industry = '" + filters.industry.toLowerCase() + "'");
-  if (filters.size && filters.size !== 'Any Size') {
-    const ranges = {'Self-Employed':'1,1','1-10':'1,10','11-50':'11,50','51-200':'51,200','201-500':'201,500','501-1,000':'501,1000','1,001-5,000':'1001,5000','5,001-10,000':'5001,10000','10,001+':'10001,1000000'};
-    const r = ranges[filters.size];
-    if (r) { const p = r.split(','); conds.push('job_company_employee_count >= ' + p[0] + ' AND job_company_employee_count <= ' + p[1]); }
-  }
-  if (filters.seniority && filters.seniority !== 'Any Seniority') {
-    const sm = {'Owner':'owner','Founder':'founder','C-Suite':'c_suite','Partner':'partner','VP':'vp','Head':'director','Director':'director','Manager':'manager','Senior':'senior','Entry-Level':'entry','Intern':'training'};
-    if (sm[filters.seniority]) conds.push("job_title_levels IN ('" + sm[filters.seniority] + "')");
-  }
-  if (filters.department && filters.department !== 'Any Department') conds.push("job_title_role = '" + filters.department.toLowerCase() + "'");
+  const body = {
+    size: pageSize,
+    filters: filters,
+    query: query,
+  };
 
-  const sql = conds.length ? 'SELECT * FROM person WHERE ' + conds.join(' AND ') + ' LIMIT ' + pageSize + ';' : 'SELECT * FROM person LIMIT ' + pageSize + ';';
+  if (scrollToken) body.scroll_token = scrollToken;
 
   return fetch(PDL_PROXY, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sql: sql, size: pageSize, from: (page - 1) * pageSize }),
+    body: JSON.stringify(body),
   }).then(function(res) {
     if (!res.ok) throw new Error('PDL search failed: ' + res.status);
     return res.json();
@@ -34,8 +26,8 @@ export function searchPeople(options) {
     return {
       contacts: people.map(function(p, i) { return mapPerson(p, i); }),
       total: data.total || people.length,
-      page: page,
-      hasMore: page * pageSize < (data.total || 0),
+      scrollToken: data.scroll_token || null,
+      hasMore: !!(data.scroll_token),
     };
   });
 }
@@ -49,7 +41,12 @@ function mapPerson(p, i) {
   var co  = exp.company || {};
   var lvl = (p.job_title_levels && p.job_title_levels[0]) || '';
   var em  = (p.emails && p.emails[0]) || {};
-  var sm  = {owner:'Owner',founder:'Founder',c_suite:'C-Suite',partner:'Partner',vp:'VP',director:'Director',manager:'Manager',senior:'Senior',entry:'Entry-Level',training:'Intern'};
+  var sm  = {
+    owner:'Owner', founder:'Founder', c_suite:'C-Suite',
+    partner:'Partner', vp:'VP', director:'Director',
+    manager:'Manager', senior:'Senior', entry:'Entry-Level', training:'Intern'
+  };
+
   var score = 50;
   if (em.valid) score += 15;
   if (['c_suite','vp','owner','founder'].indexOf(lvl) > -1) score += 15;
@@ -57,24 +54,38 @@ function mapPerson(p, i) {
   if (p.phone_numbers && p.phone_numbers.length) score += 7;
   if (p.linkedin_url) score += 3;
   if (score > 99) score = 99;
+
   return {
-    id: p.id || ('pdl_' + i),
-    name: p.full_name || 'Unknown',
-    title: p.job_title || '',
-    company: co.name || '',
-    industry: co.industry || p.industry || '',
-    department: p.job_title_role || '',
-    seniority: sm[lvl] || 'Unknown',
-    location: [p.location_locality, p.location_region, p.location_country].filter(Boolean).join(', '),
-    email: em.address || '',
-    phone: (p.phone_numbers && p.phone_numbers[0]) || '',
-    employees: 'Unknown',
-    revenue: 'Unknown',
-    score: score,
-    verified: !!em.valid,
-    linkedin: !!p.linkedin_url,
-    tags: [sm[lvl], co.industry].filter(Boolean),
-    _pdlId: p.id,
+    id:          p.id || ('pdl_' + i),
+    name:        p.full_name || 'Unknown',
+    title:       p.job_title || '',
+    company:     p.job_company_name || (co.name) || '',
+    industry:    p.job_company_industry || co.industry || '',
+    department:  p.job_title_role || '',
+    seniority:   sm[lvl] || 'Unknown',
+    location:    [p.location_locality, p.location_region, p.location_country].filter(Boolean).join(', '),
+    email:       em.address || '',
+    phone:       (p.phone_numbers && p.phone_numbers[0]) || '',
+    employees:   mapEmployees(p.job_company_employee_count),
+    revenue:     'Unknown',
+    score:       score,
+    verified:    !!(em.valid),
+    linkedin:    !!(p.linkedin_url),
+    tags:        [sm[lvl], p.job_company_industry].filter(Boolean),
+    _pdlId:      p.id,
     _linkedinUrl: p.linkedin_url,
   };
+}
+
+function mapEmployees(count) {
+  if (!count) return 'Unknown';
+  if (count <= 1)     return 'Self-Employed';
+  if (count <= 10)    return '1-10';
+  if (count <= 50)    return '11-50';
+  if (count <= 200)   return '51-200';
+  if (count <= 500)   return '201-500';
+  if (count <= 1000)  return '501-1,000';
+  if (count <= 5000)  return '1,001-5,000';
+  if (count <= 10000) return '5,001-10,000';
+  return '10,001+';
 }
