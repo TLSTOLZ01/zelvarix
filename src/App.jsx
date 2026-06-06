@@ -237,7 +237,7 @@ function AIPanel({ contact, onClose }) {
   async function run(t) {
     setTab(t); setResult(""); setLoading(true);
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/claude", {
         method:"POST", headers:{ "Content-Type":"application/json" },
         body: JSON.stringify({ model:ANTHROPIC_MODEL, max_tokens:1000, messages:[{ role:"user", content:prompts[t] }] }),
       });
