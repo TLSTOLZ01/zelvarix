@@ -389,7 +389,7 @@ export default function App() {
     const rows = contacts.map(c => [c.name,c.title,c.company,c.industry,c.department,c.seniority,c.location,c.email,c.phone,c.employees,c.revenue,c.score,c.verified?"Yes":"No",c.tags.join("; ")].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(","));
     const blob = new Blob([[hdr.join(","),...rows].join("\n")], { type:"text/csv" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-    a.download = `prospectai-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+    a.download = `zelvarix-${new Date().toISOString().slice(0,10)}.csv`; a.click();
   }
 
   function sendInvite() {
@@ -398,6 +398,30 @@ export default function App() {
     setTeamMembers(p => [...p, { id:Date.now(), name:inviteEmail.split("@")[0], email:inviteEmail, role:inviteRole, status:"invited", joined:"—", lastActive:"—", avatar:initials, searches:0, exports:0 }]);
     setInviteEmail(""); setShowInviteModal(false);
   }
+
+  // ── Auto-logout after 15 minutes of inactivity ──────────────────────────
+  const inactivityRef = useRef(null);
+
+  function resetInactivityTimer() {
+    clearTimeout(inactivityRef.current);
+    inactivityRef.current = setTimeout(async () => {
+      await sb.auth.signOut();
+      setCurrentUser(null);
+      setSbTeam(null);
+      setAppView("auth");
+    }, 15 * 60 * 1000); // 15 minutes
+  }
+
+  useEffect(() => {
+    if (appView !== "app") return;
+    const events = ["mousemove", "mousedown", "keypress", "scroll", "touchstart", "click"];
+    events.forEach(e => window.addEventListener(e, resetInactivityTimer));
+    resetInactivityTimer(); // start timer on mount
+    return () => {
+      events.forEach(e => window.removeEventListener(e, resetInactivityTimer));
+      clearTimeout(inactivityRef.current);
+    };
+  }, [appView]);
 
   // Session restore + splash
   useEffect(() => {
@@ -527,7 +551,7 @@ export default function App() {
         <style>{GLOBAL_CSS}</style>
         {/* Nav */}
         <nav style={{ height:56, borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", padding:"0 40px", justifyContent:"space-between", background:"#fff", position:"sticky", top:0, zIndex:50 }}>
-          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.ink, letterSpacing:-.3 }}>Prospect<span style={{ color:T.green, fontStyle:"italic" }}>AI</span></div>
+          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.ink, letterSpacing:-.3 }}>Zelvarix<span style={{ color:T.green, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
           <div style={{ display:"flex", gap:16, alignItems:"center" }}>
             {currentUser && <button onClick={()=>setAppView("app")} style={{ fontSize:13, color:T.inkm, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>← Back to app</button>}
             <button onClick={()=>{ setAppView("auth"); setAuthMode("login"); }} style={{ padding:"7px 16px", background:T.ink, border:"none", borderRadius:4, color:T.cream, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Sign in →</button>
@@ -663,11 +687,11 @@ export default function App() {
 
         {/* Footer */}
         <footer style={{ background:T.ink, padding:"32px 40px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:16 }}>
-          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:18, color:T.cream }}>Prospect<span style={{ color:T.greenb, fontStyle:"italic" }}>AI</span></div>
+          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:18, color:T.cream }}>Zelvarix<span style={{ color:T.greenb, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
           <div style={{ display:"flex", gap:20 }}>
             {["Privacy","Terms","Security","Contact"].map(l=><a key={l} href="#" style={{ fontSize:12, color:T.inkm, textDecoration:"none" }}>{l}</a>)}
           </div>
-          <div style={{ fontSize:11, color:T.inkm }}>© 2026 ProspectAI</div>
+          <div style={{ fontSize:11, color:T.inkm }}>© 2026 Zelvarix.ai</div>
         </footer>
       </div>
     );
@@ -683,7 +707,7 @@ export default function App() {
       <div style={{ position:"absolute", inset:0, backgroundImage:"url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='.04'/%3E%3C/svg%3E\")", opacity:.6, pointerEvents:"none" }} />
       {/* Large serif wordmark */}
       <div style={{ animation:"fadeIn .8s ease", textAlign:"center", zIndex:1 }}>
-        <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:64, color:T.cream, letterSpacing:-2, lineHeight:1, marginBottom:6 }}>Prospect<span style={{ color:T.greenb, fontStyle:"italic" }}>AI</span></div>
+        <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:64, color:T.cream, letterSpacing:-2, lineHeight:1, marginBottom:6 }}>Zelvarix<span style={{ color:T.greenb, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
         <div style={{ fontSize:13, color:T.inkm, letterSpacing:2, textTransform:"uppercase", marginBottom:52 }}>Sales Intelligence Platform</div>
         {/* Loading bar */}
         <div style={{ width:200, height:2, background:"rgba(255,255,255,.1)", borderRadius:1, margin:"0 auto 14px", overflow:"hidden" }}>
@@ -691,7 +715,7 @@ export default function App() {
         </div>
         <div style={{ fontSize:11, color:"rgba(255,255,255,.2)", letterSpacing:2, textTransform:"uppercase" }}>{splashDone?"Ready":"Initialising"}</div>
       </div>
-      <div style={{ position:"absolute", bottom:24, fontSize:11, color:"rgba(255,255,255,.15)", letterSpacing:1 }}>© 2026 ProspectAI · Powered by Claude AI</div>
+      <div style={{ position:"absolute", bottom:24, fontSize:11, color:"rgba(255,255,255,.15)", letterSpacing:1 }}>© 2026 Zelvarix.ai · Powered by Claude AI</div>
     </div>
   );
 
@@ -706,10 +730,10 @@ export default function App() {
         {/* Left — branding panel */}
         <div style={{ width:"42%", background:T.ink, padding:"52px 56px", display:"flex", flexDirection:"column", justifyContent:"space-between", position:"relative", overflow:"hidden" }}>
           <div style={{ position:"absolute", bottom:-120, right:-80, width:400, height:400, borderRadius:"50%", background:"rgba(255,255,255,.02)", pointerEvents:"none" }} />
-          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:30, color:T.cream, letterSpacing:-.5 }}>Prospect<span style={{ color:T.greenb, fontStyle:"italic" }}>AI</span></div>
+          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:30, color:T.cream, letterSpacing:-.5 }}>Zelvarix<span style={{ color:T.greenb, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
           <div>
             <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:40, color:T.cream, lineHeight:1.15, letterSpacing:-.8, marginBottom:20 }}>Find your next best customer <span style={{ color:T.greenb, fontStyle:"italic" }}>with AI.</span></div>
-            <div style={{ fontSize:14, color:T.inkm, lineHeight:1.8, marginBottom:36 }}>ProspectAI combines 1.3B+ verified contacts with Claude AI to give your team the intelligence edge.</div>
+            <div style={{ fontSize:14, color:T.inkm, lineHeight:1.8, marginBottom:36 }}>Zelvarix combines 1.3B+ verified contacts with Claude AI to give your team the intelligence edge.</div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:36 }}>
               {[["1.3B+","Verified Contacts"],["121M+","Companies"],["95%","Data Accuracy"],["60s","Time to First Lead"]].map(([v,l])=>(
                 <div key={l} style={{ borderTop:`1px solid rgba(255,255,255,.1)`, paddingTop:12 }}>
@@ -719,7 +743,7 @@ export default function App() {
               ))}
             </div>
             <div style={{ borderTop:`1px solid rgba(255,255,255,.08)`, paddingTop:20 }}>
-              <div style={{ fontSize:13, color:"rgba(255,255,255,.5)", lineHeight:1.7, fontStyle:"italic", marginBottom:12 }}>"ProspectAI cut our prospecting time by 70%."</div>
+              <div style={{ fontSize:13, color:"rgba(255,255,255,.5)", lineHeight:1.7, fontStyle:"italic", marginBottom:12 }}>"Zelvarix cut our prospecting time by 70%."</div>
               <div style={{ fontSize:12, color:T.inkm }}>Jamie Morrison, VP of Sales · TechCorp</div>
             </div>
           </div>
@@ -800,7 +824,7 @@ export default function App() {
       <div style={{ minHeight:"100vh", background:T.cream, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans',sans-serif" }}>
         <style>{GLOBAL_CSS}</style>
         <div style={{ width:480, animation:"fadeIn .4s ease" }}>
-          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:28, color:T.ink, marginBottom:6, letterSpacing:-.3 }}>Prospect<span style={{ color:T.green, fontStyle:"italic" }}>AI</span></div>
+          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:28, color:T.ink, marginBottom:6, letterSpacing:-.3 }}>Zelvarix<span style={{ color:T.green, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
           <div style={{ fontSize:12, color:T.inkmut, marginBottom:36 }}>Let's get you set up</div>
           {/* Progress */}
           <div style={{ display:"flex", gap:4, marginBottom:36 }}>
@@ -815,7 +839,7 @@ export default function App() {
               <input autoFocus className="input-base" value={onboardData[step.field]} onChange={e=>setOnboardData(p=>({...p,[step.field]:e.target.value}))} placeholder={step.placeholder} onKeyDown={e=>e.key==="Enter"&&(onboardStep<onboardSteps.length-1?setOnboardStep(s=>s+1):setAppView("app"))} style={{ marginBottom:20 }} />
             )}
             <button onClick={async()=>{ if(onboardStep<onboardSteps.length-1){ setOnboardStep(s=>s+1); } else { try { if(currentUser){ await sb.from("profiles").upsert({ id:currentUser.id, name:onboardData.name, company:onboardData.company, role:onboardData.role, goal:onboardData.goal }); } } catch(e){ console.warn("Profile save error:", e); } setAppView("app"); } }} style={{ width:"100%", padding:"11px", background:T.ink, border:"none", borderRadius:4, color:T.cream, fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
-              {onboardStep===0?"Get started →":onboardStep<onboardSteps.length-1?"Continue →":"Launch ProspectAI →"}
+              {onboardStep===0?"Get started →":onboardStep<onboardSteps.length-1?"Continue →":"Launch Zelvarix →"}
             </button>
             {onboardStep>0 && <button onClick={()=>setOnboardStep(s=>s-1)} style={{ width:"100%", marginTop:8, padding:"8px", background:"none", border:"none", color:T.inkmut, cursor:"pointer", fontSize:13, fontFamily:"'DM Sans',sans-serif" }}>← Back</button>}
           </div>
@@ -844,7 +868,7 @@ export default function App() {
       {/* ── TOP NAV BAR ─────────────────────────────────────────────────── */}
       <div style={{ height:52, background:"#fff", borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", padding:"0 24px", gap:0, position:"sticky", top:0, zIndex:50, boxShadow:`0 1px 4px ${T.shadow}` }}>
         {/* Wordmark */}
-        <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:20, color:T.ink, marginRight:32, letterSpacing:-.3, flexShrink:0 }}>Prospect<span style={{ color:T.green, fontStyle:"italic" }}>AI</span></div>
+        <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:20, color:T.ink, marginRight:32, letterSpacing:-.3, flexShrink:0 }}>Zelvarix<span style={{ color:T.green, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
 
         {/* Nav links */}
         <div style={{ display:"flex", gap:0, flex:1 }}>
@@ -883,7 +907,7 @@ export default function App() {
                   );
                 })}
                 <div style={{ borderTop:`1px solid ${T.border}`, padding:"8px 14px" }}>
-                  <button onClick={async()=>{ await sb.auth.signOut(); setCurrentUser(null); setSbTeam(null); setAppView("auth"); setShowUserMenu(false); }} style={{ fontSize:12, color:T.inkm, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Sign out</button>
+                  <button onClick={async()=>{ await sb.auth.signOut(); setCurrentUser(null); setSbTeam(null); setAppView("auth"); setShowUserMenu(false); }} style={{ fontSize:12, color:T.red, background:T.redl, border:`1px solid ${T.redb}`, borderRadius:4, padding:"6px 12px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", gap:6, width:"100%", justifyContent:"center", fontWeight:500 }}>⏏ Sign out</button>
                 </div>
               </div>
             )}
