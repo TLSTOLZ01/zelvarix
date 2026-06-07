@@ -432,14 +432,22 @@ export default function App() {
         setSavedContacts(p => [...p.filter(c=>c.id!==id), contact]);
         setPipelineStages(p => ({ ...p, [id]: "New" }));
         // Save to Supabase
-        if (currentUser && sbTeam) {
+        if (currentUser) {
           try {
-            const { data } = await sb.from("saved_contacts").insert({
-              user_id: currentUser.id, team_id: sbTeam.id,
-              apollo_id: String(id), contact_data: { ...contact, pipeline_stage: "New" }
-            }).select("id").single();
-            if (data) setSavedRowIds(p => ({ ...p, [id]: data.id }));
-          } catch(e) { console.warn(e); }
+            // Get team_id from team_members if sbTeam not loaded yet
+            let teamId = sbTeam?.id;
+            if (!teamId) {
+              const { data: mem } = await sb.from("team_members").select("team_id").eq("user_id", currentUser.id).single();
+              if (mem) teamId = mem.team_id;
+            }
+            if (teamId) {
+              const { data } = await sb.from("saved_contacts").insert({
+                user_id: currentUser.id, team_id: teamId,
+                apollo_id: String(id), contact_data: { ...contact, pipeline_stage: "New" }
+              }).select("id").single();
+              if (data) setSavedRowIds(p => ({ ...p, [id]: data.id }));
+            }
+          } catch(e) { console.warn("Save contact error:", e); }
         }
       }
     }
@@ -543,18 +551,28 @@ export default function App() {
           if (lsts) setLists(lsts.map(l => ({ id: l.id, name: l.name, count: l.list_contacts?.[0]?.count || 0 })));
           // Load saved contacts
           const { data: saved } = await sb.from("saved_contacts").select("id, contact_data").eq("user_id", user.id);
-          if (saved) {
-            const ids = new Set(saved.map(s => s.contact_data?.id || s.id));
-            setSavedIds(ids);
-            setSavedContacts(saved.map(s => s.contact_data).filter(Boolean));
+          console.log("Loaded saved contacts:", saved?.length || 0);
+          if (saved && saved.length > 0) {
+            const ids = new Set();
+            const contacts = [];
             const rowIds = {};
             const stages = {};
             saved.forEach(s => {
-              const cid = s.contact_data?.id;
-              if (cid) { rowIds[cid] = s.id; stages[cid] = s.contact_data?.pipeline_stage || "New"; }
+              const cd = s.contact_data;
+              if (!cd) return;
+              const cid = cd.id;
+              if (cid) {
+                ids.add(cid);
+                contacts.push(cd);
+                rowIds[cid] = s.id;
+                stages[cid] = cd.pipeline_stage || "New";
+              }
             });
+            setSavedIds(ids);
+            setSavedContacts(contacts);
             setSavedRowIds(rowIds);
             setPipelineStages(stages);
+            console.log("Pipeline stages loaded:", stages);
           }
         }
         setSbReady(true);
@@ -595,12 +613,20 @@ export default function App() {
       const { data: lsts } = await sb.from("lists").select("id, name, list_contacts(count)").eq("team_id", mem.team_id);
       if (lsts) setLists(lsts.map(l => ({ id: l.id, name: l.name, count: l.list_contacts?.[0]?.count || 0 })));
       const { data: saved } = await sb.from("saved_contacts").select("id, contact_data").eq("user_id", user.id);
-      if (saved) {
-        setSavedIds(new Set(saved.map(s => s.contact_data?.id || s.id)));
-        setSavedContacts(saved.map(s => s.contact_data).filter(Boolean));
+      if (saved && saved.length > 0) {
+        const ids = new Set();
+        const contacts = [];
         const rowIds = {}, stages = {};
-        saved.forEach(s => { const cid = s.contact_data?.id; if(cid){ rowIds[cid]=s.id; stages[cid]=s.contact_data?.pipeline_stage||"New"; } });
-        setSavedRowIds(rowIds); setPipelineStages(stages);
+        saved.forEach(s => {
+          const cd = s.contact_data;
+          if (!cd) return;
+          const cid = cd.id;
+          if (cid) { ids.add(cid); contacts.push(cd); rowIds[cid]=s.id; stages[cid]=cd.pipeline_stage||"New"; }
+        });
+        setSavedIds(ids);
+        setSavedContacts(contacts);
+        setSavedRowIds(rowIds);
+        setPipelineStages(stages);
       }
     }
     setAppView("app");
