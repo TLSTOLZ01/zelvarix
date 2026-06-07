@@ -320,7 +320,12 @@ export default function App() {
   const [filters, setFilters]         = useState({ industry:"All Industries", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" });
   const [selectedContact, setSelectedContact] = useState(null);
   const [aiContact, setAiContact]     = useState(null);
-  const [savedIds, setSavedIds]       = useState(new Set());
+  const [savedIds, setSavedIds]         = useState(new Set());
+  const [savedContacts, setSavedContacts] = useState([]);  // full contact objects
+  const [savedRowIds, setSavedRowIds]     = useState({});  // contact id -> supabase row id
+  const [pipelineStages, setPipelineStages] = useState({}); // contact id -> stage
+  const [draggedId, setDraggedId]         = useState(null);
+  const [dragOverStage, setDragOverStage] = useState(null);
   const [selectedForExport, setSelectedForExport] = useState(new Set());
   const [selectMode, setSelectMode]   = useState(false);
   const [pdlContacts, setPdlContacts]   = useState([]);
@@ -408,7 +413,52 @@ export default function App() {
   const sorted = [...filteredContacts].sort((a,b) => b.score - a.score);
   const displayTotal = useLiveData ? pdlTotal : mockFiltered.length;
 
-  function toggleSave(id) { setSavedIds(p => { const n=new Set(p); n.has(id)?n.delete(id):n.add(id); return n; }); }
+  async function toggleSave(contactOrId) {
+    const id = typeof contactOrId === 'object' ? contactOrId.id : contactOrId;
+    const contact = typeof contactOrId === 'object' ? contactOrId : MOCK_CONTACTS.find(c=>c.id===id) || pdlContacts.find(c=>c.id===id);
+    if (savedIds.has(id)) {
+      // Unsave
+      setSavedIds(p => { const n=new Set(p); n.delete(id); return n; });
+      setSavedContacts(p => p.filter(c=>c.id!==id));
+      setPipelineStages(p => { const n={...p}; delete n[id]; return n; });
+      // Delete from Supabase
+      if (savedRowIds[id] && currentUser) {
+        try { await sb.from("saved_contacts").delete().eq("id", savedRowIds[id]); } catch(e) { console.warn(e); }
+      }
+    } else {
+      // Save
+      setSavedIds(p => new Set([...p, id]));
+      if (contact) {
+        setSavedContacts(p => [...p.filter(c=>c.id!==id), contact]);
+        setPipelineStages(p => ({ ...p, [id]: "New" }));
+        // Save to Supabase
+        if (currentUser && sbTeam) {
+          try {
+            const { data } = await sb.from("saved_contacts").insert({
+              user_id: currentUser.id, team_id: sbTeam.id,
+              apollo_id: String(id), contact_data: { ...contact, pipeline_stage: "New" }
+            }).select("id").single();
+            if (data) setSavedRowIds(p => ({ ...p, [id]: data.id }));
+          } catch(e) { console.warn(e); }
+        }
+      }
+    }
+  }
+
+  async function moveToStage(contactId, newStage) {
+    setPipelineStages(p => ({ ...p, [contactId]: newStage }));
+    // Update in Supabase
+    if (savedRowIds[contactId] && currentUser) {
+      try {
+        const contact = savedContacts.find(c=>c.id===contactId);
+        if (contact) {
+          await sb.from("saved_contacts").update({
+            contact_data: { ...contact, pipeline_stage: newStage }
+          }).eq("id", savedRowIds[contactId]);
+        }
+      } catch(e) { console.warn(e); }
+    }
+  }
   function toggleExport(id) { setSelectedForExport(p => { const n=new Set(p); n.has(id)?n.delete(id):n.add(id); return n; }); }
 
   function downloadCSV(contacts) {
@@ -493,7 +543,19 @@ export default function App() {
           if (lsts) setLists(lsts.map(l => ({ id: l.id, name: l.name, count: l.list_contacts?.[0]?.count || 0 })));
           // Load saved contacts
           const { data: saved } = await sb.from("saved_contacts").select("id, contact_data").eq("user_id", user.id);
-          if (saved) setSavedIds(new Set(saved.map(s => s.contact_data?.id || s.id)));
+          if (saved) {
+            const ids = new Set(saved.map(s => s.contact_data?.id || s.id));
+            setSavedIds(ids);
+            setSavedContacts(saved.map(s => s.contact_data).filter(Boolean));
+            const rowIds = {};
+            const stages = {};
+            saved.forEach(s => {
+              const cid = s.contact_data?.id;
+              if (cid) { rowIds[cid] = s.id; stages[cid] = s.contact_data?.pipeline_stage || "New"; }
+            });
+            setSavedRowIds(rowIds);
+            setPipelineStages(stages);
+          }
         }
         setSbReady(true);
         setAppView("app");
@@ -533,7 +595,13 @@ export default function App() {
       const { data: lsts } = await sb.from("lists").select("id, name, list_contacts(count)").eq("team_id", mem.team_id);
       if (lsts) setLists(lsts.map(l => ({ id: l.id, name: l.name, count: l.list_contacts?.[0]?.count || 0 })));
       const { data: saved } = await sb.from("saved_contacts").select("id, contact_data").eq("user_id", user.id);
-      if (saved) setSavedIds(new Set(saved.map(s => s.contact_data?.id || s.id)));
+      if (saved) {
+        setSavedIds(new Set(saved.map(s => s.contact_data?.id || s.id)));
+        setSavedContacts(saved.map(s => s.contact_data).filter(Boolean));
+        const rowIds = {}, stages = {};
+        saved.forEach(s => { const cid = s.contact_data?.id; if(cid){ rowIds[cid]=s.id; stages[cid]=s.contact_data?.pipeline_stage||"New"; } });
+        setSavedRowIds(rowIds); setPipelineStages(stages);
+      }
     }
     setAppView("app");
   }
@@ -1341,7 +1409,7 @@ export default function App() {
                       <div><ScorePill score={c.score} /></div>
                       <div style={{ display:"flex", gap:4, justifyContent:"flex-end" }}>
                         <button onClick={e=>{e.stopPropagation();setAiContact(c);}} style={{ width:26, height:26, background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, cursor:"pointer", fontSize:12, color:T.green, display:"flex", alignItems:"center", justifyContent:"center" }} title="AI Insights">✦</button>
-                        <button onClick={e=>{e.stopPropagation();toggleSave(c.id);}} style={{ width:26, height:26, background:savedIds.has(c.id)?T.amberl:"#fff", border:`1px solid ${savedIds.has(c.id)?T.amberb:T.border}`, borderRadius:3, cursor:"pointer", fontSize:12, color:savedIds.has(c.id)?T.amber:T.inkmut, display:"flex", alignItems:"center", justifyContent:"center" }}>{savedIds.has(c.id)?"★":"☆"}</button>
+                        <button onClick={e=>{e.stopPropagation();toggleSave(c);}} style={{ width:26, height:26, background:savedIds.has(c.id)?T.amberl:"#fff", border:`1px solid ${savedIds.has(c.id)?T.amberb:T.border}`, borderRadius:3, cursor:"pointer", fontSize:12, color:savedIds.has(c.id)?T.amber:T.inkmut, display:"flex", alignItems:"center", justifyContent:"center" }}>{savedIds.has(c.id)?"★":"☆"}</button>
                       </div>
                     </div>
                   ))}
@@ -1389,48 +1457,80 @@ export default function App() {
         {/* ── PIPELINE ────────────────────────────────────────────────── */}
         {view==="pipeline" && (
           <div style={{ flex:1, padding:"28px 32px", overflowY:"auto" }}>
-            <SectionHeading label="Pipeline" sub="Drag contacts through your sales stages" />
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, alignItems:"start" }}>
-              {[
-                { stage:"New",       col:T.inkm,  bg:T.paper,  border:T.border  },
-                { stage:"Contacted", col:T.amber, bg:T.amberl, border:T.amberb  },
-                { stage:"Qualified", col:"#3466cc", bg:"#e8f3ff", border:"#bdd4fd" },
-                { stage:"Closed",    col:T.green, bg:T.greenl, border:T.greenb  },
-              ].map(({ stage, col, bg, border }, si) => {
-                const stageKey = "pipeline_" + stage;
-                const stageContacts = (savedIds.size > 0
-                  ? MOCK_CONTACTS.filter(c => savedIds.has(c.id))
-                  : MOCK_CONTACTS.slice(0,10)
-                ).filter((_,i) => i % 4 === si);
-                return (
-                  <div key={stage}>
-                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12, padding:"8px 10px", background:bg, border:`1px solid ${border}`, borderRadius:5 }}>
-                      <div style={{ width:8, height:8, borderRadius:"50%", background:col, flexShrink:0 }} />
-                      <span style={{ fontSize:12, fontWeight:600, color:col, flex:1 }}>{stage}</span>
-                      <span style={{ fontSize:11, color:T.inkmut, fontFamily:"'DM Mono',monospace", background:"rgba(0,0,0,.05)", padding:"1px 6px", borderRadius:3 }}>{stageContacts.length}</span>
-                    </div>
-                    <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                      {stageContacts.map(c=>(
-                        <div key={c.id} style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, padding:"12px 14px", cursor:"pointer" }}
-                          onClick={()=>setSelectedContact(selectedContact?.id===c.id?null:c)}>
-                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:4 }}>
-                            <div style={{ fontSize:13, fontWeight:500, color:T.ink }}>{c.name}</div>
-                            <ScorePill score={c.score} />
-                          </div>
-                          <div style={{ fontSize:11, color:T.inkm, marginBottom:2 }}>{c.title}</div>
-                          <div style={{ fontSize:11, color:T.green, fontWeight:500, marginBottom:8 }}>{c.company}</div>
-                          <div style={{ display:"flex", gap:6 }}>
-                            <button onClick={e=>{e.stopPropagation();setAiContact(c);}} style={{ flex:1, fontSize:10, fontWeight:500, padding:"4px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, color:T.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>✦ AI</button>
-                            <button onClick={e=>{e.stopPropagation();toggleSave(c.id);}} style={{ flex:1, fontSize:10, fontWeight:500, padding:"4px", background:savedIds.has(c.id)?T.amberl:T.paper, border:`1px solid ${savedIds.has(c.id)?T.amberb:T.border}`, borderRadius:3, color:savedIds.has(c.id)?T.amber:T.inkm, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>{savedIds.has(c.id)?"★ Saved":"☆ Save"}</button>
-                          </div>
-                        </div>
-                      ))}
-                      <div style={{ border:`1.5px dashed ${T.paperd}`, borderRadius:5, padding:"10px", textAlign:"center", fontSize:12, color:T.inkmut, cursor:"pointer" }} onClick={()=>setView("discover")}>+ Add from Discover</div>
-                    </div>
-                  </div>
-                );
-              })}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:28 }}>
+              <SectionHeading label="Pipeline" sub={savedContacts.length > 0 ? `${savedContacts.length} contacts across all stages` : "Star contacts in Discover to add them here"} />
+              <button onClick={()=>setView("discover")} style={{ padding:"8px 16px", background:T.ink, border:"none", borderRadius:4, color:T.cream, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>+ Add contacts</button>
             </div>
+
+            {savedContacts.length === 0 ? (
+              <div style={{ textAlign:"center", padding:"80px 20px", background:"#fff", border:`1.5px dashed ${T.paperd}`, borderRadius:8 }}>
+                <div style={{ fontSize:48, marginBottom:16 }}>📋</div>
+                <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:24, color:T.inkm, marginBottom:8 }}>Your pipeline is empty</div>
+                <div style={{ fontSize:14, color:T.inkmut, marginBottom:20, lineHeight:1.7 }}>Star contacts in the Discover tab to add them to your pipeline. Then drag them through stages as you progress.</div>
+                <button onClick={()=>setView("discover")} style={{ padding:"10px 24px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Go to Discover →</button>
+              </div>
+            ) : (
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, alignItems:"start" }}>
+                {[
+                  { stage:"New",       col:T.inkm,    bg:T.paper,   border:T.border,  icon:"◯" },
+                  { stage:"Contacted", col:T.amber,   bg:T.amberl,  border:T.amberb,  icon:"✉" },
+                  { stage:"Qualified", col:"#3466cc", bg:"#e8f3ff", border:"#bdd4fd", icon:"✓" },
+                  { stage:"Closed",    col:T.green,   bg:T.greenl,  border:T.greenb,  icon:"★" },
+                ].map(({ stage, col, bg, border, icon }) => {
+                  const stageContacts = savedContacts.filter(c => (pipelineStages[c.id] || "New") === stage);
+                  const isOver = dragOverStage === stage;
+                  return (
+                    <div key={stage}
+                      onDragOver={e=>{ e.preventDefault(); setDragOverStage(stage); }}
+                      onDragLeave={()=>setDragOverStage(null)}
+                      onDrop={async e=>{ e.preventDefault(); setDragOverStage(null); if(draggedId) await moveToStage(draggedId, stage); setDraggedId(null); }}
+                      style={{ minHeight:200, transition:"background .15s" }}>
+                      {/* Column header */}
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12, padding:"9px 12px", background:isOver?bg:"#fff", border:`1.5px solid ${isOver?col:border}`, borderRadius:5, transition:"all .15s" }}>
+                        <span style={{ fontSize:14, color:col }}>{icon}</span>
+                        <span style={{ fontSize:12, fontWeight:600, color:col, flex:1 }}>{stage}</span>
+                        <span style={{ fontSize:11, color:T.inkmut, fontFamily:"'DM Mono',monospace", background:isOver?col:"rgba(0,0,0,.06)", color:isOver?"#fff":T.inkmut, padding:"1px 7px", borderRadius:3, transition:"all .15s" }}>{stageContacts.length}</span>
+                      </div>
+
+                      {/* Drop zone indicator */}
+                      {isOver && (
+                        <div style={{ border:`2px dashed ${col}`, borderRadius:5, padding:"12px", textAlign:"center", fontSize:12, color:col, marginBottom:8, background:bg }}>Drop here → {stage}</div>
+                      )}
+
+                      {/* Cards */}
+                      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                        {stageContacts.map(c=>(
+                          <div key={c.id}
+                            draggable
+                            onDragStart={()=>setDraggedId(c.id)}
+                            onDragEnd={()=>{ setDraggedId(null); setDragOverStage(null); }}
+                            style={{ background:"#fff", border:`1px solid ${draggedId===c.id?col:T.border}`, borderRadius:5, padding:"12px 14px", cursor:"grab", opacity:draggedId===c.id?.5:1, transition:"all .15s", boxShadow:draggedId===c.id?`0 4px 16px rgba(0,0,0,.12)`:"none" }}>
+                            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:3 }}>
+                              <div style={{ fontSize:13, fontWeight:600, color:T.ink, flex:1, marginRight:8 }}>{c.name}</div>
+                              <ScorePill score={c.score} />
+                            </div>
+                            <div style={{ fontSize:11, color:T.inkm, marginBottom:2 }}>{c.title}</div>
+                            <div style={{ fontSize:11, color:T.green, fontWeight:500, marginBottom:10 }}>{c.company}</div>
+                            {/* Stage selector */}
+                            <select value={pipelineStages[c.id]||"New"} onChange={async e=>await moveToStage(c.id, e.target.value)}
+                              style={{ width:"100%", fontSize:11, padding:"3px 6px", border:`1px solid ${T.border}`, borderRadius:3, background:T.paper, color:T.inkl, fontFamily:"'DM Sans',sans-serif", marginBottom:8, cursor:"pointer", outline:"none" }}>
+                              {["New","Contacted","Qualified","Closed"].map(s=><option key={s}>{s}</option>)}
+                            </select>
+                            <div style={{ display:"flex", gap:5 }}>
+                              <button onClick={()=>setAiContact(c)} style={{ flex:1, fontSize:10, fontWeight:500, padding:"4px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, color:T.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>✦ AI</button>
+                              <button onClick={()=>toggleSave(c)} style={{ flex:1, fontSize:10, fontWeight:500, padding:"4px", background:T.redl, border:`1px solid ${T.redb}`, borderRadius:3, color:T.red, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>✕ Remove</button>
+                            </div>
+                          </div>
+                        ))}
+                        {stageContacts.length === 0 && !isOver && (
+                          <div style={{ border:`1.5px dashed ${T.paperd}`, borderRadius:5, padding:"16px", textAlign:"center", fontSize:11, color:T.inkmut }}>Drag contacts here</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
