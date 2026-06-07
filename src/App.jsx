@@ -547,8 +547,8 @@ export default function App() {
           const { data: lsts } = await sb.from("lists").select("id, name, list_contacts(count)").eq("team_id", mem.team_id);
           if (lsts) setLists(lsts.map(l => ({ id: l.id, name: l.name, count: l.list_contacts?.[0]?.count || 0 })));
           // Load saved contacts
-          const { data: saved } = await sb.from("saved_contacts").select("id, contact_data").eq("user_id", user.id);
-          console.log("Loaded saved contacts:", saved?.length || 0);
+          const { data: saved, error: savedError } = await sb.from("saved_contacts").select("id, contact_data").eq("user_id", user.id);
+          console.log("Loaded saved contacts:", saved?.length || 0, "error:", savedError?.message);
           if (saved && saved.length > 0) {
             const ids = new Set();
             const contacts = [];
@@ -609,7 +609,8 @@ export default function App() {
       if (team) { setSbTeam(team); setSelectedPlan(team.plan); }
       const { data: lsts } = await sb.from("lists").select("id, name, list_contacts(count)").eq("team_id", mem.team_id);
       if (lsts) setLists(lsts.map(l => ({ id: l.id, name: l.name, count: l.list_contacts?.[0]?.count || 0 })));
-      const { data: saved } = await sb.from("saved_contacts").select("id, contact_data").eq("user_id", user.id);
+      const { data: saved, error: savedErr } = await sb.from("saved_contacts").select("id, contact_data").eq("user_id", user.id);
+      console.log("Login - saved contacts:", saved?.length || 0, "error:", savedErr?.message);
       if (saved && saved.length > 0) {
         const ids = new Set();
         const contacts = [];
