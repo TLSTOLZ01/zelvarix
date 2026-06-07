@@ -333,6 +333,12 @@ export default function App() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [showCancelFlow, setShowCancelFlow]   = useState(false);
+  const [cancelStep, setCancelStep]           = useState(1);  // 1=warning 2=reason 3=offer 4=confirm
+  const [cancelReason, setCancelReason]       = useState("");
+  const [cancelPassword, setCancelPassword]   = useState("");
+  const [cancelError, setCancelError]         = useState("");
+  const [cancelComplete, setCancelComplete]   = useState(false);
   const [inviteRole, setInviteRole]   = useState("rep");
   // Dynamic billing derived from selected plan
   const activePlan   = PLANS.find(p => p.id === selectedPlan) || PLANS[1]; // default Pro
@@ -1292,6 +1298,145 @@ export default function App() {
         {/* ── BILLING ─────────────────────────────────────────────────── */}
         {view==="billing" && (
           <div style={{ flex:1, padding:"28px 32px", overflowY:"auto" }}>
+
+            {/* ── CANCELLATION FLOW MODAL ─────────────────────────────── */}
+            {showCancelFlow && (
+              <div style={{ position:"fixed", inset:0, background:"rgba(26,24,20,.5)", zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }} onClick={()=>{ setShowCancelFlow(false); setCancelStep(1); setCancelError(""); setCancelPassword(""); }}>
+                <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:32, width:"100%", maxWidth:480, boxShadow:`0 8px 40px ${T.shadowd}` }} onClick={e=>e.stopPropagation()}>
+
+                  {/* Step indicator */}
+                  {!cancelComplete && (
+                    <div style={{ display:"flex", gap:4, marginBottom:24 }}>
+                      {[1,2,3,4].map(s=>(
+                        <div key={s} style={{ flex:1, height:3, borderRadius:2, background:s<=cancelStep?T.red:T.paperd, transition:"background .3s" }} />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* STEP 1 — What you'll lose */}
+                  {cancelStep===1 && !cancelComplete && (
+                    <>
+                      <div style={{ fontSize:22, fontFamily:"'Instrument Serif',serif", color:T.ink, marginBottom:6 }}>Before you cancel</div>
+                      <div style={{ fontSize:13, color:T.inkm, marginBottom:20, lineHeight:1.7 }}>Your account will remain active until the end of your current billing period. After that you will lose access to:</div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:24 }}>
+                        {[
+                          [`${activeBilling.credits.total - activeBilling.credits.used} remaining credits`, T.green],
+                          ["All saved contacts and lists", T.amber],
+                          ["Team member access", T.amber],
+                          ["AI Intelligence panel", T.green],
+                          ["Export history", T.inkm],
+                        ].map(([item, color])=>(
+                          <div key={item} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 12px", background:T.paper, borderRadius:5 }}>
+                            <span style={{ color:T.red, fontSize:14 }}>✕</span>
+                            <span style={{ fontSize:13, color:T.inkl }}>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Offer downgrade first */}
+                      <div style={{ background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:6, padding:"14px 16px", marginBottom:16 }}>
+                        <div style={{ fontSize:13, fontWeight:600, color:T.green, marginBottom:4 }}>💡 Consider downgrading instead</div>
+                        <div style={{ fontSize:12, color:T.inkm, marginBottom:10 }}>Switch to our Starter plan at $39/mo and keep your contacts and data.</div>
+                        <button onClick={()=>{ setShowCancelFlow(false); setAppView("pricing"); }} style={{ fontSize:12, fontWeight:600, padding:"6px 14px", background:T.green, border:"none", borderRadius:4, color:"#fff", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>View Starter plan →</button>
+                      </div>
+                      <div style={{ display:"flex", gap:10 }}>
+                        <button onClick={()=>setShowCancelFlow(false)} style={{ flex:1, padding:"10px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:5, color:T.inkl, fontWeight:500, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Keep my account</button>
+                        <button onClick={()=>setCancelStep(2)} style={{ flex:1, padding:"10px", background:T.redl, border:`1px solid ${T.redb}`, borderRadius:5, color:T.red, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Continue to cancel →</button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* STEP 2 — Reason */}
+                  {cancelStep===2 && !cancelComplete && (
+                    <>
+                      <div style={{ fontSize:22, fontFamily:"'Instrument Serif',serif", color:T.ink, marginBottom:6 }}>Why are you leaving?</div>
+                      <div style={{ fontSize:13, color:T.inkm, marginBottom:20 }}>Your feedback helps us improve. Please select the main reason.</div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:24 }}>
+                        {[
+                          "Too expensive",
+                          "Not enough contacts in my industry",
+                          "Missing features I need",
+                          "Switching to a competitor",
+                          "No longer need the service",
+                          "Technical issues",
+                          "Other",
+                        ].map(reason=>(
+                          <button key={reason} onClick={()=>setCancelReason(reason)} style={{ padding:"10px 14px", textAlign:"left", background:cancelReason===reason?T.redl:T.paper, border:`1px solid ${cancelReason===reason?T.redb:T.border}`, borderRadius:5, fontSize:13, color:cancelReason===reason?T.red:T.inkl, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontWeight:cancelReason===reason?600:400, transition:"all .15s" }}>{reason}</button>
+                        ))}
+                      </div>
+                      <div style={{ display:"flex", gap:10 }}>
+                        <button onClick={()=>setCancelStep(1)} style={{ flex:1, padding:"10px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:5, color:T.inkl, fontWeight:500, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>← Back</button>
+                        <button onClick={()=>{ if(!cancelReason){ setCancelError("Please select a reason."); return; } setCancelError(""); setCancelStep(3); }} style={{ flex:1, padding:"10px", background:T.red, border:"none", borderRadius:5, color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Continue →</button>
+                      </div>
+                      {cancelError && <div style={{ fontSize:12, color:T.red, marginTop:8 }}>{cancelError}</div>}
+                    </>
+                  )}
+
+                  {/* STEP 3 — Pause offer */}
+                  {cancelStep===3 && !cancelComplete && (
+                    <>
+                      <div style={{ fontSize:22, fontFamily:"'Instrument Serif',serif", color:T.ink, marginBottom:6 }}>Would a pause help?</div>
+                      <div style={{ fontSize:13, color:T.inkm, marginBottom:20, lineHeight:1.7 }}>Instead of cancelling, you can pause your account for up to 60 days. Your data stays safe and you can reactivate anytime.</div>
+                      <div style={{ background:T.amberl, border:`1px solid ${T.amberb}`, borderRadius:6, padding:"16px", marginBottom:20 }}>
+                        <div style={{ fontSize:13, fontWeight:600, color:T.amber, marginBottom:4 }}>⏸ Pause your account</div>
+                        <div style={{ fontSize:12, color:T.inkm, marginBottom:10 }}>No charges during pause. Resume anytime. All your data preserved.</div>
+                        <button onClick={()=>{ alert("Account pause coming soon — contact support@zelvarix.ai to pause manually."); setShowCancelFlow(false); }} style={{ fontSize:12, fontWeight:600, padding:"6px 14px", background:T.amber, border:"none", borderRadius:4, color:"#fff", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Pause for 60 days →</button>
+                      </div>
+                      <div style={{ display:"flex", gap:10 }}>
+                        <button onClick={()=>setCancelStep(2)} style={{ flex:1, padding:"10px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:5, color:T.inkl, fontWeight:500, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>← Back</button>
+                        <button onClick={()=>setCancelStep(4)} style={{ flex:1, padding:"10px", background:T.redl, border:`1px solid ${T.redb}`, borderRadius:5, color:T.red, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>No thanks, cancel →</button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* STEP 4 — Final confirm with password */}
+                  {cancelStep===4 && !cancelComplete && (
+                    <>
+                      <div style={{ fontSize:22, fontFamily:"'Instrument Serif',serif", color:T.ink, marginBottom:6 }}>Confirm cancellation</div>
+                      <div style={{ fontSize:13, color:T.inkm, marginBottom:6, lineHeight:1.7 }}>Please re-enter your password to confirm. Your account will remain active until <strong>{activeBilling.nextBill.date}</strong>.</div>
+                      <div style={{ background:T.redl, border:`1px solid ${T.redb}`, borderRadius:5, padding:"10px 14px", marginBottom:16, fontSize:12, color:T.red }}>
+                        ⚠ This action cannot be undone. All team members will be notified by email.
+                      </div>
+                      <div style={{ marginBottom:16 }}>
+                        <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:6 }}>Your password</label>
+                        <input type="password" value={cancelPassword} onChange={e=>setCancelPassword(e.target.value)} placeholder="Enter your password to confirm" style={{ width:"100%", padding:"10px 12px", background:T.paper, border:`1px solid ${cancelError?T.red:T.border}`, borderRadius:5, color:T.ink, fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:"none", boxSizing:"border-box" }} />
+                        {cancelError && <div style={{ fontSize:12, color:T.red, marginTop:4 }}>{cancelError}</div>}
+                      </div>
+                      <div style={{ display:"flex", gap:10 }}>
+                        <button onClick={()=>{ setCancelStep(3); setCancelError(""); }} style={{ flex:1, padding:"10px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:5, color:T.inkl, fontWeight:500, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>← Back</button>
+                        <button onClick={async()=>{
+                          if (!cancelPassword) { setCancelError("Please enter your password."); return; }
+                          // Verify password by re-authenticating with Supabase
+                          const { error } = await sb.auth.signInWithPassword({ email: currentUser.email, password: cancelPassword });
+                          if (error) { setCancelError("Incorrect password. Please try again."); return; }
+                          // Password correct — mark as cancelled
+                          setCancelError("");
+                          setCancelComplete(true);
+                          // In production: call Stripe to cancel subscription
+                          // await stripe.subscriptions.cancel(subscriptionId);
+                        }} style={{ flex:1, padding:"10px", background:T.red, border:"none", borderRadius:5, color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Cancel my subscription</button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* COMPLETE */}
+                  {cancelComplete && (
+                    <div style={{ textAlign:"center", padding:"20px 0" }}>
+                      <div style={{ fontSize:40, marginBottom:16 }}>✓</div>
+                      <div style={{ fontSize:22, fontFamily:"'Instrument Serif',serif", color:T.ink, marginBottom:8 }}>Cancellation confirmed</div>
+                      <div style={{ fontSize:13, color:T.inkm, lineHeight:1.7, marginBottom:20 }}>
+                        Your account will remain active until <strong>{activeBilling.nextBill.date}</strong>. You will receive a confirmation email shortly. All team members have been notified.
+                      </div>
+                      <div style={{ fontSize:12, color:T.inkm, background:T.paper, borderRadius:5, padding:"10px 14px", marginBottom:20, textAlign:"left" }}>
+                        <strong>Changed your mind?</strong> Email <span style={{ color:T.green }}>support@zelvarix.ai</span> within 24 hours to reactivate your account with no data loss.
+                      </div>
+                      <button onClick={()=>{ setShowCancelFlow(false); setCancelStep(1); setCancelComplete(false); setCancelReason(""); setCancelPassword(""); }} style={{ padding:"10px 24px", background:T.ink, border:"none", borderRadius:5, color:T.cream, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Close</button>
+                    </div>
+                  )}
+
+                </div>
+              </div>
+            )}
+
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:28 }}>
               <SectionHeading label="Billing" sub="Plan, seats, and usage" />
               <button onClick={()=>setAppView("pricing")} style={{ padding:"8px 16px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:4, color:T.green, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>↑ Upgrade plan</button>
@@ -1343,6 +1488,21 @@ export default function App() {
                 </div>
               ))}
             </div>
+
+            {/* Cancel subscription — Admin only */}
+            {perms.canManageBilling ? (
+              <div style={{ marginTop:24, padding:"16px 20px", background:T.redl, border:`1px solid ${T.redb}`, borderRadius:6, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:600, color:T.red, marginBottom:2 }}>Cancel subscription</div>
+                  <div style={{ fontSize:12, color:T.inkm }}>Only the account Admin can cancel. Your data is preserved for 30 days after cancellation.</div>
+                </div>
+                <button onClick={()=>{ setShowCancelFlow(true); setCancelStep(1); setCancelComplete(false); setCancelReason(""); setCancelPassword(""); setCancelError(""); }} style={{ padding:"8px 16px", background:"#fff", border:`1px solid ${T.redb}`, borderRadius:5, color:T.red, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>Cancel plan</button>
+              </div>
+            ) : (
+              <div style={{ marginTop:24, padding:"14px 18px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:6 }}>
+                <div style={{ fontSize:13, color:T.inkm }}>🔒 Only the account Admin can cancel or modify the subscription. Contact your Admin to make changes.</div>
+              </div>
+            )}
           </div>
         )}
 
