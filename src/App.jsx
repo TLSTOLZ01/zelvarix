@@ -438,13 +438,13 @@ export default function App() {
     window.gtag = function(){ window.dataLayer.push(arguments); };
     window.gtag('js', new Date());
     window.gtag('config', GA_MEASUREMENT_ID);
-    // Load Crisp chat
-    window.$crisp = [];
-    window.CRISP_WEBSITE_ID = CRISP_WEBSITE_ID;
-    const script2 = document.createElement('script');
-    script2.src = 'https://client.crisp.chat/l.js';
-    script2.async = true;
-    document.head.appendChild(script2);
+    // Load Crisp chat — uncomment when you have a real Crisp ID
+    // window.$crisp = [];
+    // window.CRISP_WEBSITE_ID = CRISP_WEBSITE_ID;
+    // const script2 = document.createElement('script');
+    // script2.src = 'https://client.crisp.chat/l.js';
+    // script2.async = true;
+    // document.head.appendChild(script2);
   }, []);
 
   // ── Auto-logout after 15 minutes of inactivity ──────────────────────────
