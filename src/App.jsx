@@ -546,7 +546,7 @@ export default function App() {
     if (signupData.password!==signupData.confirm) { setAuthError("Passwords do not match."); return; }
     setAuthLoading(true);
     // 1. Create Supabase auth user
-    const { data, error } = await sb.auth.signUp({ email: signupData.email, password: signupData.password, options: { data: { name: signupData.name } } });
+    const { data, error } = await sb.auth.signUp({ email: signupData.email, password: signupData.password, options: { data: { name: signupData.name }, emailRedirectTo: 'https://www.zelvarix.ai' } });
     if (error) { setAuthLoading(false); setAuthError(error.message); return; }
     const user = data.user;
     setCurrentUser(user);
@@ -563,7 +563,7 @@ export default function App() {
     }
     setAuthLoading(false);
     setOnboardData(p=>({...p, name:signupData.name}));
-    setAppView(selectedPlan ? "onboard" : "pricing");
+    setAppView("onboard");  // Always go to onboarding after signup
   }
 
   // ── ONBOARDING ─────────────────────────────────────────────────────────────
@@ -1389,32 +1389,43 @@ export default function App() {
         {/* ── PIPELINE ────────────────────────────────────────────────── */}
         {view==="pipeline" && (
           <div style={{ flex:1, padding:"28px 32px", overflowY:"auto" }}>
-            <SectionHeading label="Pipeline" sub="Manage your prospect pipeline by stage" />
+            <SectionHeading label="Pipeline" sub="Drag contacts through your sales stages" />
             <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, alignItems:"start" }}>
-              {["New","Contacted","Qualified","Closed"].map((stage,si)=>{
-                const stageBg  = [T.paper,T.amberl,"#e8f3ff",T.greenl][si];
-                const stageCol = [T.inkm,T.amber,"#3466cc",T.green][si];
-                const stageContacts = MOCK_CONTACTS.filter((_,i)=>i%4===si).slice(0,3+si);
+              {[
+                { stage:"New",       col:T.inkm,  bg:T.paper,  border:T.border  },
+                { stage:"Contacted", col:T.amber, bg:T.amberl, border:T.amberb  },
+                { stage:"Qualified", col:"#3466cc", bg:"#e8f3ff", border:"#bdd4fd" },
+                { stage:"Closed",    col:T.green, bg:T.greenl, border:T.greenb  },
+              ].map(({ stage, col, bg, border }, si) => {
+                const stageKey = "pipeline_" + stage;
+                const stageContacts = (savedIds.size > 0
+                  ? MOCK_CONTACTS.filter(c => savedIds.has(c.id))
+                  : MOCK_CONTACTS.slice(0,10)
+                ).filter((_,i) => i % 4 === si);
                 return (
                   <div key={stage}>
-                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
-                      <div style={{ width:8, height:8, borderRadius:"50%", background:stageCol }} />
-                      <span style={{ fontSize:12, fontWeight:600, color:T.inkl }}>{stage}</span>
-                      <span style={{ fontSize:11, color:T.inkmut, fontFamily:"'DM Mono',monospace" }}>{stageContacts.length}</span>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12, padding:"8px 10px", background:bg, border:`1px solid ${border}`, borderRadius:5 }}>
+                      <div style={{ width:8, height:8, borderRadius:"50%", background:col, flexShrink:0 }} />
+                      <span style={{ fontSize:12, fontWeight:600, color:col, flex:1 }}>{stage}</span>
+                      <span style={{ fontSize:11, color:T.inkmut, fontFamily:"'DM Mono',monospace", background:"rgba(0,0,0,.05)", padding:"1px 6px", borderRadius:3 }}>{stageContacts.length}</span>
                     </div>
                     <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                       {stageContacts.map(c=>(
-                        <div key={c.id} style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, padding:"12px 14px", cursor:"pointer" }}>
-                          <div style={{ fontSize:13, fontWeight:500, color:T.ink, marginBottom:2 }}>{c.name}</div>
-                          <div style={{ fontSize:11, color:T.inkm, marginBottom:6 }}>{c.title}</div>
-                          <div style={{ fontSize:11, color:T.inkl, fontWeight:500, marginBottom:8 }}>{c.company}</div>
-                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                        <div key={c.id} style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, padding:"12px 14px", cursor:"pointer" }}
+                          onClick={()=>setSelectedContact(selectedContact?.id===c.id?null:c)}>
+                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:4 }}>
+                            <div style={{ fontSize:13, fontWeight:500, color:T.ink }}>{c.name}</div>
                             <ScorePill score={c.score} />
-                            <button onClick={()=>setAiContact(c)} style={{ fontSize:10, fontWeight:500, padding:"2px 8px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, color:T.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>✦ AI</button>
+                          </div>
+                          <div style={{ fontSize:11, color:T.inkm, marginBottom:2 }}>{c.title}</div>
+                          <div style={{ fontSize:11, color:T.green, fontWeight:500, marginBottom:8 }}>{c.company}</div>
+                          <div style={{ display:"flex", gap:6 }}>
+                            <button onClick={e=>{e.stopPropagation();setAiContact(c);}} style={{ flex:1, fontSize:10, fontWeight:500, padding:"4px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, color:T.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>✦ AI</button>
+                            <button onClick={e=>{e.stopPropagation();toggleSave(c.id);}} style={{ flex:1, fontSize:10, fontWeight:500, padding:"4px", background:savedIds.has(c.id)?T.amberl:T.paper, border:`1px solid ${savedIds.has(c.id)?T.amberb:T.border}`, borderRadius:3, color:savedIds.has(c.id)?T.amber:T.inkm, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>{savedIds.has(c.id)?"★ Saved":"☆ Save"}</button>
                           </div>
                         </div>
                       ))}
-                      <div style={{ border:`1.5px dashed ${T.paperd}`, borderRadius:5, padding:"10px", textAlign:"center", fontSize:12, color:T.inkmut, cursor:"pointer" }}>+ Add prospect</div>
+                      <div style={{ border:`1.5px dashed ${T.paperd}`, borderRadius:5, padding:"10px", textAlign:"center", fontSize:12, color:T.inkmut, cursor:"pointer" }} onClick={()=>setView("discover")}>+ Add from Discover</div>
                     </div>
                   </div>
                 );
@@ -1426,37 +1437,75 @@ export default function App() {
         {/* ── LISTS ───────────────────────────────────────────────────── */}
         {view==="lists" && (
           <div style={{ flex:1, padding:"28px 32px", overflowY:"auto" }}>
-            <SectionHeading label="Lists" sub="Your saved prospect lists" />
-            {savedIds.size>0 && (
-              <div style={{ marginBottom:24 }}>
-                <div style={{ fontSize:11, fontWeight:600, color:T.green, textTransform:"uppercase", letterSpacing:1, marginBottom:12 }}>★ Saved ({savedIds.size})</div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:28 }}>
+              <SectionHeading label="Lists" sub="Your saved prospect lists" />
+              <button onClick={async()=>{
+                const n = prompt("List name?");
+                if (!n) return;
+                try {
+                  if (sbTeam && currentUser) {
+                    const { data } = await sb.from("lists").insert({ team_id:sbTeam.id, created_by:currentUser.id, name:n }).select().single();
+                    if (data) setLists(p=>[...p,{ id:data.id, name:n, count:0 }]);
+                  } else {
+                    setLists(p=>[...p,{ id:Date.now(), name:n, count:0 }]);
+                  }
+                } catch(e) { console.warn("List create error:", e); setLists(p=>[...p,{ id:Date.now(), name:n, count:0 }]); }
+              }} style={{ padding:"8px 16px", background:T.ink, border:"none", borderRadius:4, color:T.cream, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>+ New list</button>
+            </div>
+
+            {/* Saved contacts */}
+            {savedIds.size > 0 && (
+              <div style={{ marginBottom:28 }}>
+                <div style={{ fontSize:11, fontWeight:600, color:T.green, textTransform:"uppercase", letterSpacing:1, marginBottom:12 }}>★ Saved contacts ({savedIds.size})</div>
                 <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, overflow:"hidden" }}>
                   {MOCK_CONTACTS.filter(c=>savedIds.has(c.id)).map((c,i,arr)=>(
-                    <div key={c.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px", borderBottom:i<arr.length-1?`1px solid ${T.border}`:"none" }}>
+                    <div key={c.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 16px", borderBottom:i<arr.length-1?`1px solid ${T.border}`:"none", background:i%2===0?"#fff":T.cream }}>
                       <div>
                         <div style={{ fontSize:13, fontWeight:500, color:T.ink }}>{c.name}</div>
                         <div style={{ fontSize:11, color:T.inkm }}>{c.title} · {c.company}</div>
+                        <div style={{ fontSize:11, color:T.inkmut }}>{c.location}</div>
                       </div>
-                      <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                      <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
                         <ScorePill score={c.score} />
-                        <button onClick={()=>setAiContact(c)} style={{ fontSize:11, padding:"3px 8px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, color:T.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>✦ AI</button>
-                        <button onClick={()=>toggleSave(c.id)} style={{ fontSize:11, color:T.inkmut, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Remove</button>
+                        <button onClick={()=>setAiContact(c)} style={{ fontSize:11, padding:"4px 8px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, color:T.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>✦ AI</button>
+                        <button onClick={()=>toggleSave(c.id)} style={{ fontSize:11, color:T.red, background:T.redl, border:`1px solid ${T.redb}`, borderRadius:3, padding:"4px 8px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Remove</button>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
-              {lists.map(l=>(
-                <div key={l.id} style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, padding:"18px 20px", cursor:"pointer" }}>
-                  <div style={{ fontSize:10, fontWeight:600, color:T.inkmut, fontFamily:"'DM Mono',monospace", marginBottom:8 }}>LIST · {String(l.id).padStart(3,"0")}</div>
-                  <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:18, color:T.ink, marginBottom:4 }}>{l.name}</div>
-                  <div style={{ fontSize:12, color:T.inkm }}>{l.count} contacts</div>
+
+            {savedIds.size === 0 && lists.length === 0 && (
+              <div style={{ textAlign:"center", padding:"60px 20px", background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, marginBottom:24 }}>
+                <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.inkm, marginBottom:8 }}>No saved contacts yet</div>
+                <div style={{ fontSize:13, color:T.inkmut, marginBottom:16 }}>Star contacts in the Discover tab to save them here.</div>
+                <button onClick={()=>setView("discover")} style={{ padding:"8px 20px", background:T.ink, border:"none", borderRadius:4, color:T.cream, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Go to Discover →</button>
+              </div>
+            )}
+
+            {/* Lists grid */}
+            {lists.length > 0 && (
+              <>
+                <div style={{ fontSize:11, fontWeight:600, color:T.inkmut, textTransform:"uppercase", letterSpacing:1, marginBottom:12 }}>My lists ({lists.length})</div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
+                  {lists.map(l=>(
+                    <div key={l.id} style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, padding:"18px 20px", cursor:"pointer", transition:"border-color .15s" }}>
+                      <div style={{ fontSize:10, fontWeight:600, color:T.inkmut, fontFamily:"'DM Mono',monospace", marginBottom:8 }}>LIST</div>
+                      <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:18, color:T.ink, marginBottom:4 }}>{l.name}</div>
+                      <div style={{ fontSize:12, color:T.inkm, marginBottom:12 }}>{l.count} contacts</div>
+                      <button onClick={async()=>{
+                        if (!window.confirm(`Delete list "${l.name}"?`)) return;
+                        try {
+                          if (sbTeam) await sb.from("lists").delete().eq("id", l.id);
+                          setLists(p=>p.filter(x=>x.id!==l.id));
+                        } catch(e) { setLists(p=>p.filter(x=>x.id!==l.id)); }
+                      }} style={{ fontSize:11, color:T.inkmut, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", padding:0 }}>Delete</button>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              <button onClick={async()=>{ const n=prompt("List name?"); if(!n) return; if(sbTeam && currentUser){ const { data } = await sb.from("lists").insert({ team_id:sbTeam.id, created_by:currentUser.id, name:n }).select().single(); if(data) setLists(p=>[...p,{ id:data.id, name:n, count:0 }]); } else { setLists(p=>[...p,{ id:p.length+1, name:n, count:0 }]); } }} style={{ background:T.paper, border:`1.5px dashed ${T.paperd}`, borderRadius:5, padding:"18px 20px", cursor:"pointer", color:T.inkmut, fontSize:13, fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>+ New list</button>
-            </div>
+              </>
+            )}
           </div>
         )}
 
