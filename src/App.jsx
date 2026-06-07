@@ -328,7 +328,7 @@ export default function App() {
   const [useLiveData, setUseLiveData]   = useState(false);
   const debounceRef                     = useRef(null);
   const [lists, setLists]             = useState([{ id:1, name:"Hot Prospects Q2", count:3 }, { id:2, name:"Enterprise Targets", count:12 }]);
-  const [teamMembers, setTeamMembers] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([{ id:1, name:"", email:"", role:"admin", status:"active", joined:"", lastActive:"Today", avatar:"", searches:0, exports:0 }]);
   const [activeUserId, setActiveUserId] = useState(1);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -346,13 +346,13 @@ export default function App() {
   const [onboardStep, setOnboardStep] = useState(0);
   const [onboardData, setOnboardData] = useState({ name:"", company:"", role:"", goal:"" });
 
-  const activeUser = teamMembers.find(u => u.id === activeUserId) || teamMembers[0];
-  const perms      = ROLE_PERMISSIONS[activeUser.role];
+  const activeUser = teamMembers.find(u => u.id === activeUserId) || teamMembers[0] || { role:"admin", name:"", avatar:"" };
+  const perms      = ROLE_PERMISSIONS[activeUser.role] || ROLE_PERMISSIONS.admin;
 
-  // Display name — use real logged-in user from Supabase, not mock team data
-  const displayName   = currentUser ? (onboardData.name || currentUser.email.split("@")[0]) : activeUser.name;
-  const displayEmail  = currentUser ? currentUser.email : activeUser.email;
-  const displayAvatar = displayName.split(" ").map(n => n[0]).join("").slice(0,2).toUpperCase();
+  // Display name — always use real logged-in user from Supabase
+  const displayName   = currentUser ? (onboardData.name || currentUser.email.split("@")[0]) : (activeUser.name || "User");
+  const displayEmail  = currentUser ? currentUser.email : (activeUser.email || "");
+  const displayAvatar = displayName ? displayName.split(" ").map(n => n[0]).join("").slice(0,2).toUpperCase() : "U";
 
   // Live PDL search function
   const runPDLSearch = useCallback(async (page = 1, append = false) => {
