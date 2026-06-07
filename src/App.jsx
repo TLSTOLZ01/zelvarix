@@ -10,6 +10,10 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 // ─── APOLLO / AI CONFIG ──────────────────────────────────────────────────────
 const ANTHROPIC_MODEL = "claude-sonnet-4-20250514";
 
+// ── ANALYTICS & MONITORING ───────────────────────────────────────────────────
+const GA_MEASUREMENT_ID = 'G-XXXXXXXXXX'; // Replace with your real GA4 ID
+const CRISP_WEBSITE_ID  = 'YOUR-CRISP-ID'; // Replace with your real Crisp ID
+
 // ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
 const T = {
   cream:    "#faf8f4",
@@ -422,6 +426,27 @@ export default function App() {
     setInviteEmail(""); setShowInviteModal(false);
   }
 
+  // ── Google Analytics ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    // Load GA4
+    const script1 = document.createElement('script');
+    script1.src = `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`;
+    script1.async = true;
+    document.head.appendChild(script1);
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function(){ window.dataLayer.push(arguments); };
+    window.gtag('js', new Date());
+    window.gtag('config', GA_MEASUREMENT_ID);
+    // Load Crisp chat
+    window.$crisp = [];
+    window.CRISP_WEBSITE_ID = CRISP_WEBSITE_ID;
+    const script2 = document.createElement('script');
+    script2.src = 'https://client.crisp.chat/l.js';
+    script2.async = true;
+    document.head.appendChild(script2);
+  }, []);
+
   // ── Auto-logout after 15 minutes of inactivity ──────────────────────────
   const inactivityRef = useRef(null);
 
@@ -712,7 +737,238 @@ export default function App() {
         <footer style={{ background:T.ink, padding:"32px 40px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:16 }}>
           <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:18, color:T.cream }}>Zelvarix<span style={{ color:T.greenb, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
           <div style={{ display:"flex", gap:20 }}>
-            {["Privacy","Terms","Security","Contact"].map(l=><a key={l} href="#" style={{ fontSize:12, color:T.inkm, textDecoration:"none" }}>{l}</a>)}
+            {[["privacy","Privacy"],["terms","Terms"],["cookies","Cookies"],["security","Security"],["contact","Contact"],["about","About"]].map(([id,l])=><button key={id} onClick={()=>setAppView(id)} style={{ fontSize:12, color:T.inkm, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>{l}</button>)}
+          </div>
+          <div style={{ fontSize:11, color:T.inkm }}>© 2026 Zelvarix.ai</div>
+        </footer>
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // LEGAL / CONTACT / ABOUT PAGES
+  // ══════════════════════════════════════════════════════════════════════════
+  const legalPages = ["privacy", "terms", "cookies", "contact", "about", "security"];
+  if (legalPages.includes(appView)) {
+    const pages = {
+      privacy: {
+        title: "Privacy Policy",
+        lastUpdated: "June 1, 2026",
+        content: [
+          { h: "1. Information We Collect", p: "We collect information you provide directly to us when you create an account, including your name, email address, company name, and role. We also collect usage data including searches performed, contacts viewed, lists created, and features used. We use cookies and similar technologies to maintain your session and improve your experience." },
+          { h: "2. How We Use Your Information", p: "We use your information to provide and improve the Zelvarix platform, process transactions, send transactional and promotional emails (with your consent), respond to support requests, and comply with legal obligations. We do not sell your personal information to third parties." },
+          { h: "3. Data Sharing", p: "We share your data with trusted service providers including Supabase (database and authentication), People Data Labs (contact data), Anthropic (AI processing), Stripe (payment processing), and Vercel (hosting). Each provider is bound by data processing agreements and processes data only as instructed by us." },
+          { h: "4. Contact Data", p: "Zelvarix provides access to publicly available B2B professional contact information sourced from People Data Labs. This data is used solely for legitimate B2B prospecting purposes. We do not store contact data you view — it is retrieved in real time and not retained on our servers beyond your session." },
+          { h: "5. Data Retention", p: "We retain your account data for as long as your account is active. Upon cancellation, your account data is retained for 30 days to allow reactivation, after which it is permanently deleted. You may request deletion of your data at any time by emailing privacy@zelvarix.ai." },
+          { h: "6. Your Rights", p: "Depending on your location, you may have rights including access to your data, correction of inaccurate data, deletion of your data, portability of your data, and objection to processing. To exercise these rights, contact privacy@zelvarix.ai. We will respond within 30 days." },
+          { h: "7. Security", p: "We implement industry-standard security measures including encryption in transit (TLS 1.3), encryption at rest, row-level security in our database, API key isolation, and regular security audits. No method of transmission over the internet is 100% secure, and we cannot guarantee absolute security." },
+          { h: "8. Cookies", p: "We use essential cookies for authentication and session management. We also use analytics cookies (Google Analytics) to understand how users interact with our platform. You can control cookies through your browser settings. Disabling essential cookies may affect platform functionality." },
+          { h: "9. Changes to This Policy", p: "We may update this Privacy Policy from time to time. We will notify you of significant changes by email and by posting the new policy on this page with an updated effective date." },
+          { h: "10. Contact Us", p: "If you have questions about this Privacy Policy, please contact us at privacy@zelvarix.ai or write to Zelvarix, Inc., [Your Address]." },
+        ]
+      },
+      terms: {
+        title: "Terms of Service",
+        lastUpdated: "June 1, 2026",
+        content: [
+          { h: "1. Acceptance of Terms", p: "By accessing or using Zelvarix (zelvarix.ai), you agree to be bound by these Terms of Service. If you do not agree, do not use the platform. These terms apply to all users including individuals, teams, and organisations." },
+          { h: "2. Description of Service", p: "Zelvarix is a B2B prospecting platform that provides access to professional contact data, AI-powered lead intelligence, and sales tools. We reserve the right to modify, suspend, or discontinue any feature at any time with reasonable notice." },
+          { h: "3. Acceptable Use", p: "You may use Zelvarix only for lawful B2B prospecting and sales purposes. You may not use the platform to spam, harass, or contact individuals outside a professional B2B context, violate any applicable law including CAN-SPAM, GDPR, or CASL, resell or redistribute contact data, attempt to reverse-engineer or scrape the platform, or share your account credentials with others." },
+          { h: "4. Subscription and Billing", p: "Zelvarix operates on a subscription basis. Your subscription begins on the date you select a paid plan and provide payment information. Subscriptions automatically renew unless cancelled before the renewal date. Credits expire at the end of each billing period and do not roll over unless stated otherwise." },
+          { h: "5. Cancellation and Refunds", p: "You may cancel your subscription at any time through the Billing section of your account. Cancellation takes effect at the end of your current billing period. We do not offer refunds for partial billing periods. In exceptional circumstances, refund requests may be considered at our discretion — contact support@zelvarix.ai." },
+          { h: "6. Intellectual Property", p: "Zelvarix and all associated trademarks, logos, and content are the property of Zelvarix, Inc. Contact data provided through the platform is licensed from third-party data providers and may not be redistributed, resold, or used outside the platform's intended purpose." },
+          { h: "7. Disclaimers", p: "Zelvarix is provided 'as is' without warranties of any kind. We do not guarantee the accuracy, completeness, or availability of contact data. AI-generated content (ice breakers, emails, scores) is provided for informational purposes and should be reviewed before use. We are not responsible for the outcome of any outreach campaigns." },
+          { h: "8. Limitation of Liability", p: "To the maximum extent permitted by law, Zelvarix's liability to you for any claim arising from these terms or your use of the platform is limited to the amount you paid us in the 12 months preceding the claim. We are not liable for indirect, incidental, or consequential damages." },
+          { h: "9. Governing Law", p: "These terms are governed by the laws of the State of Texas, United States. Any disputes shall be resolved in the courts of Texas, and you consent to personal jurisdiction in those courts." },
+          { h: "10. Changes to Terms", p: "We may update these terms from time to time. We will notify you of material changes by email at least 14 days before they take effect. Continued use of the platform after changes take effect constitutes acceptance of the new terms." },
+        ]
+      },
+      cookies: {
+        title: "Cookie Policy",
+        lastUpdated: "June 1, 2026",
+        content: [
+          { h: "What Are Cookies", p: "Cookies are small text files stored on your device when you visit a website. They help websites remember your preferences and understand how you use the site." },
+          { h: "Essential Cookies", p: "These cookies are required for Zelvarix to function. They manage your authentication session and keep you logged in. Without these cookies, you cannot use the platform. These cannot be disabled." },
+          { h: "Analytics Cookies", p: "We use Google Analytics (GA4) to understand how users interact with Zelvarix — which features are used most, where users spend time, and how we can improve. Analytics cookies are anonymous and do not identify you personally. You can opt out via your browser settings or the Google Analytics opt-out extension." },
+          { h: "Support Cookies", p: "We use Crisp chat to provide customer support. Crisp may set cookies to maintain your chat session and remember your conversation history. These are only active if you interact with the chat widget." },
+          { h: "Managing Cookies", p: "You can control cookies through your browser settings. Most browsers allow you to block or delete cookies. Note that blocking essential cookies will prevent you from using Zelvarix. To opt out of Google Analytics specifically, visit tools.google.com/dlpage/gaoptout." },
+          { h: "Contact", p: "For questions about our use of cookies, contact privacy@zelvarix.ai." },
+        ]
+      },
+      contact: {
+        title: "Contact Us",
+        lastUpdated: null,
+        isContact: true,
+      },
+      about: {
+        title: "About Zelvarix",
+        lastUpdated: null,
+        isAbout: true,
+      },
+      security: {
+        title: "Security",
+        lastUpdated: "June 1, 2026",
+        content: [
+          { h: "Our Commitment to Security", p: "Security is foundational to Zelvarix. We are committed to protecting your data and the data of your prospects. We continuously review and improve our security practices." },
+          { h: "Infrastructure Security", p: "Zelvarix is hosted on Vercel's global edge network with automatic DDoS protection. Our database runs on Supabase (Postgres) with enterprise-grade encryption. All data is encrypted in transit using TLS 1.3 and at rest using AES-256 encryption." },
+          { h: "Authentication & Access Control", p: "User authentication is managed by Supabase Auth with industry-standard JWT tokens. We implement row-level security (RLS) ensuring users can only access their own data. API keys are never exposed in client-side code — all third-party API calls are proxied through secure server-side functions." },
+          { h: "Data Isolation", p: "Each team's data is completely isolated using row-level security policies. It is architecturally impossible for one team to access another team's contacts, lists, or billing data." },
+          { h: "Session Security", p: "User sessions automatically expire after 15 minutes of inactivity. Sessions are invalidated immediately on sign-out. We support re-authentication for sensitive actions like account cancellation." },
+          { h: "API Security", p: "All API endpoints implement rate limiting to prevent abuse. Server-side proxy functions protect third-party API keys from exposure. Input validation is performed on all API endpoints." },
+          { h: "Vulnerability Reporting", p: "If you discover a security vulnerability in Zelvarix, please report it responsibly to security@zelvarix.ai. We will acknowledge your report within 24 hours and work to resolve confirmed vulnerabilities promptly. We appreciate responsible disclosure and will credit researchers where appropriate." },
+          { h: "Compliance", p: "Zelvarix is designed with GDPR and CCPA compliance in mind. We maintain data processing agreements with all sub-processors. Enterprise customers may request our Data Processing Agreement (DPA) by contacting sales@zelvarix.ai." },
+        ]
+      },
+    };
+
+    const page = pages[appView];
+    const [contactForm, setContactForm] = React.useState({ name:"", email:"", company:"", subject:"General inquiry", message:"" });
+    const [contactSent, setContactSent] = React.useState(false);
+    const [contactSending, setContactSending] = React.useState(false);
+    const [contactError, setContactError] = React.useState("");
+
+    async function submitContact() {
+      if (!contactForm.name || !contactForm.email || !contactForm.message) { setContactError("Please fill in all required fields."); return; }
+      setContactSending(true); setContactError("");
+      try {
+        const res = await fetch('/api/contact', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(contactForm) });
+        if (!res.ok) throw new Error('Send failed');
+        setContactSent(true);
+      } catch { setContactError("Failed to send. Please email support@zelvarix.ai directly."); }
+      setContactSending(false);
+    }
+
+    return (
+      <div style={{ minHeight:"100vh", background:T.cream, fontFamily:"'DM Sans',sans-serif", color:T.ink }}>
+        <style>{GLOBAL_CSS}</style>
+        {/* Nav */}
+        <nav style={{ height:56, borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", padding:"0 40px", justifyContent:"space-between", background:"#fff", position:"sticky", top:0, zIndex:50 }}>
+          <button onClick={()=>setAppView(currentUser?"app":"pricing")} style={{ fontFamily:"'Instrument Serif',serif", fontSize:20, color:T.ink, background:"none", border:"none", cursor:"pointer", letterSpacing:-.3 }}>
+            Zelvarix<span style={{ color:T.green, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span>
+          </button>
+          <div style={{ display:"flex", gap:20, alignItems:"center" }}>
+            {["about","security","contact"].map(p=>(
+              <button key={p} onClick={()=>setAppView(p)} style={{ fontSize:13, color:appView===p?T.green:T.inkm, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textTransform:"capitalize", fontWeight:appView===p?600:400 }}>{p}</button>
+            ))}
+            <button onClick={()=>setAppView(currentUser?"app":"pricing")} style={{ padding:"7px 16px", background:T.ink, border:"none", borderRadius:4, color:T.cream, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>{currentUser?"Back to app →":"Get started →"}</button>
+          </div>
+        </nav>
+
+        <div style={{ maxWidth:760, margin:"0 auto", padding:"52px 24px 80px" }}>
+
+          {/* CONTACT PAGE */}
+          {appView==="contact" && (
+            <>
+              <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:42, color:T.ink, letterSpacing:-1, marginBottom:8 }}>Get in touch</div>
+              <div style={{ fontSize:15, color:T.inkm, marginBottom:40, lineHeight:1.7 }}>Have a question, need help, or want to talk about an enterprise plan? We're here.</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:32, marginBottom:40 }}>
+                {[
+                  { icon:"✉", label:"General", email:"hello@zelvarix.ai", desc:"General questions and feedback" },
+                  { icon:"🛠", label:"Support", email:"support@zelvarix.ai", desc:"Technical help and account issues" },
+                  { icon:"💼", label:"Sales", email:"sales@zelvarix.ai", desc:"Enterprise plans and partnerships" },
+                  { icon:"🔒", label:"Security", email:"security@zelvarix.ai", desc:"Report vulnerabilities responsibly" },
+                ].map(c=>(
+                  <div key={c.label} style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:6, padding:"18px 20px" }}>
+                    <div style={{ fontSize:20, marginBottom:8 }}>{c.icon}</div>
+                    <div style={{ fontSize:14, fontWeight:600, color:T.ink, marginBottom:2 }}>{c.label}</div>
+                    <div style={{ fontSize:13, color:T.inkm, marginBottom:6 }}>{c.desc}</div>
+                    <a href={`mailto:${c.email}`} style={{ fontSize:13, color:T.green, textDecoration:"none", fontWeight:500 }}>{c.email}</a>
+                  </div>
+                ))}
+              </div>
+              {/* Contact form */}
+              <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:6, padding:"28px 28px" }}>
+                <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.ink, marginBottom:20 }}>Send us a message</div>
+                {contactSent ? (
+                  <div style={{ textAlign:"center", padding:"32px 0" }}>
+                    <div style={{ fontSize:36, marginBottom:12 }}>✓</div>
+                    <div style={{ fontSize:18, fontFamily:"'Instrument Serif',serif", color:T.ink, marginBottom:6 }}>Message sent!</div>
+                    <div style={{ fontSize:13, color:T.inkm }}>We'll get back to you within 1 business day.</div>
+                  </div>
+                ) : (
+                  <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+                      <div>
+                        <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Name *</label>
+                        <input className="input-base" value={contactForm.name} onChange={e=>setContactForm(p=>({...p,name:e.target.value}))} placeholder="Your name" />
+                      </div>
+                      <div>
+                        <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Email *</label>
+                        <input className="input-base" type="email" value={contactForm.email} onChange={e=>setContactForm(p=>({...p,email:e.target.value}))} placeholder="you@company.com" />
+                      </div>
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+                      <div>
+                        <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Company</label>
+                        <input className="input-base" value={contactForm.company} onChange={e=>setContactForm(p=>({...p,company:e.target.value}))} placeholder="Company name" />
+                      </div>
+                      <div>
+                        <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Subject</label>
+                        <select className="input-base" value={contactForm.subject} onChange={e=>setContactForm(p=>({...p,subject:e.target.value}))}>
+                          {["General inquiry","Technical support","Billing question","Enterprise sales","Partnership","Security","Other"].map(s=><option key={s}>{s}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Message *</label>
+                      <textarea className="input-base" value={contactForm.message} onChange={e=>setContactForm(p=>({...p,message:e.target.value}))} placeholder="Tell us how we can help..." rows={5} style={{ resize:"vertical", lineHeight:1.6 }} />
+                    </div>
+                    {contactError && <div style={{ fontSize:12, color:T.red, background:T.redl, border:`1px solid ${T.redb}`, borderRadius:4, padding:"8px 12px" }}>{contactError}</div>}
+                    <button onClick={submitContact} disabled={contactSending} style={{ padding:"11px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:14, cursor:contactSending?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", opacity:contactSending?.7:1 }}>
+                      {contactSending ? "Sending…" : "Send message →"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* ABOUT PAGE */}
+          {appView==="about" && (
+            <>
+              <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:42, color:T.ink, letterSpacing:-1, marginBottom:8 }}>About Zelvarix</div>
+              <div style={{ fontSize:15, color:T.inkm, marginBottom:40, lineHeight:1.7 }}>We're building the AI-native prospecting platform for modern sales teams.</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:28 }}>
+                {[
+                  { title:"Our mission", body:"Sales teams spend too much time finding contacts and not enough time selling. Zelvarix changes that — combining 1.3B+ verified contacts with Claude AI to give every rep the intelligence they need to find, research, and approach the right people fast." },
+                  { title:"Why we built this", body:"Every existing prospecting tool was built for the pre-AI era. They're data dumps. Zelvarix is different — it doesn't just find contacts, it tells you exactly how to approach them with personalised ice breakers, lead score rationales, and AI-written outreach. We built the tool we always wanted." },
+                  { title:"Our values", body:"Transparency over opacity — our AI scoring always explains its reasoning. Privacy by design — we handle contact data responsibly and only for legitimate B2B purposes. Fair pricing — we charge what we cost, not what the market will bear." },
+                  { title:"Get in touch", body:"We're a small, focused team. If you have feedback, ideas, or want to talk enterprise — we'd love to hear from you. Email us at hello@zelvarix.ai or use the contact form." },
+                ].map(s=>(
+                  <div key={s.title} style={{ borderTop:`2px solid ${T.green}`, paddingTop:20 }}>
+                    <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.ink, marginBottom:10 }}>{s.title}</div>
+                    <div style={{ fontSize:14, color:T.inkm, lineHeight:1.8 }}>{s.body}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* LEGAL PAGES (Privacy, Terms, Cookies, Security) */}
+          {!["contact","about"].includes(appView) && page && (
+            <>
+              <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:42, color:T.ink, letterSpacing:-1, marginBottom:8 }}>{page.title}</div>
+              {page.lastUpdated && <div style={{ fontSize:13, color:T.inkmut, marginBottom:40 }}>Last updated: {page.lastUpdated}</div>}
+              <div style={{ display:"flex", flexDirection:"column", gap:24 }}>
+                {(page.content || []).map((section, i)=>(
+                  <div key={i} style={{ borderTop:`1px solid ${T.border}`, paddingTop:20 }}>
+                    <div style={{ fontSize:15, fontWeight:600, color:T.ink, marginBottom:8 }}>{section.h}</div>
+                    <div style={{ fontSize:14, color:T.inkm, lineHeight:1.8 }}>{section.p}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+        </div>
+
+        {/* Footer */}
+        <footer style={{ background:T.ink, padding:"32px 40px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:16 }}>
+          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:18, color:T.cream }}>Zelvarix<span style={{ color:T.greenb, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
+          <div style={{ display:"flex", gap:20, flexWrap:"wrap" }}>
+            {[["privacy","Privacy"],["terms","Terms"],["cookies","Cookies"],["security","Security"],["contact","Contact"],["about","About"]].map(([id,label])=>(
+              <button key={id} onClick={()=>setAppView(id)} style={{ fontSize:12, color:T.inkm, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>{label}</button>
+            ))}
           </div>
           <div style={{ fontSize:11, color:T.inkm }}>© 2026 Zelvarix.ai</div>
         </footer>
@@ -1506,6 +1762,14 @@ export default function App() {
           </div>
         )}
 
+      </div>
+
+      {/* Footer links in app */}
+      <div style={{ position:"fixed", bottom:0, left:0, right:0, padding:"6px 24px", background:"rgba(250,248,244,.95)", borderTop:`1px solid ${T.border}`, display:"flex", gap:16, zIndex:10, backdropFilter:"blur(4px)" }}>
+        {[["privacy","Privacy"],["terms","Terms"],["cookies","Cookies"],["security","Security"],["contact","Contact"],["about","About"]].map(([id,l])=>(
+          <button key={id} onClick={()=>setAppView(id)} style={{ fontSize:11, color:T.inkmut, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>{l}</button>
+        ))}
+        <span style={{ fontSize:11, color:T.inkmut, marginLeft:"auto" }}>© 2026 Zelvarix.ai</span>
       </div>
 
       {/* AI Panel */}
