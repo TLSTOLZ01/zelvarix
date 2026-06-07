@@ -382,7 +382,7 @@ export default function App() {
   }, [filters, searchQuery, useLiveData]);
 
   // Mock data filtered locally
-  const mockFiltered = MOCK_CONTACTS.filter(c => {
+  const mockFiltered = MOCK_CONTACTS.slice(0, 10).filter(c => {
     const q = searchQuery.toLowerCase();
     const mQ = !q || c.name.toLowerCase().includes(q) || c.company.toLowerCase().includes(q) || c.title.toLowerCase().includes(q) || c.industry.toLowerCase().includes(q) || c.location.toLowerCase().includes(q);
     const mI = filters.industry === "All Industries" || c.industry === filters.industry;
@@ -909,8 +909,10 @@ export default function App() {
             </button>
             {showUserMenu && (
               <div style={{ position:"absolute", top:"calc(100% + 6px)", right:0, width:240, background:"#fff", border:`1px solid ${T.border}`, borderRadius:6, boxShadow:`0 4px 20px ${T.shadowd}`, zIndex:100, overflow:"hidden" }}>
-                <div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:600, color:T.inkmut, textTransform:"uppercase", letterSpacing:1 }}>Switch user</div>
-                {teamMembers.filter(m=>m.status==="active").map(m=>{
+                {teamMembers.filter(m=>m.status==="active").length > 1 && (
+                  <div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:600, color:T.inkmut, textTransform:"uppercase", letterSpacing:1 }}>Switch user</div>
+                )}
+                {teamMembers.filter(m=>m.status==="active").length > 1 && teamMembers.filter(m=>m.status==="active").map(m=>{
                   const rp = ROLE_PERMISSIONS[m.role];
                   return (
                     <button key={m.id} onClick={()=>{ setActiveUserId(m.id); setShowUserMenu(false); if(view==="team"&&!ROLE_PERMISSIONS[m.role].canViewTeam)setView("discover"); if(view==="billing"&&!ROLE_PERMISSIONS[m.role].canManageBilling)setView("discover"); }} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"8px 14px", background:m.id===activeUserId?"#f8faf8":"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textAlign:"left" }}>
@@ -923,6 +925,7 @@ export default function App() {
                     </button>
                   );
                 })}
+                
                 <div style={{ borderTop:`1px solid ${T.border}`, padding:"8px 14px" }}>
                   <div style={{ padding:"8px 14px 6px", borderTop:`1px solid ${T.border}` }}>
                   <div style={{ fontSize:13, fontWeight:600, color:T.ink, marginBottom:2 }}>{displayName}</div>
