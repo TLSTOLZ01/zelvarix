@@ -328,7 +328,7 @@ export default function App() {
   const [useLiveData, setUseLiveData]   = useState(false);
   const debounceRef                     = useRef(null);
   const [lists, setLists]             = useState([{ id:1, name:"Hot Prospects Q2", count:3 }, { id:2, name:"Enterprise Targets", count:12 }]);
-  const [teamMembers, setTeamMembers] = useState(MOCK_TEAM);
+  const [teamMembers, setTeamMembers] = useState([]);
   const [activeUserId, setActiveUserId] = useState(1);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
