@@ -12,7 +12,7 @@ const ANTHROPIC_MODEL = "claude-sonnet-4-20250514";
 
 // ── ANALYTICS & MONITORING ───────────────────────────────────────────────────
 const GA_MEASUREMENT_ID = 'G-XXXXXXXXXX'; // Replace with your real GA4 ID
-const CRISP_WEBSITE_ID  = 'YOUR-CRISP-ID'; // Replace with your real Crisp ID
+const CRISP_WEBSITE_ID  = '2562ef43-438d-4a73-ad32-16d5f901c70a';
 
 // ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
 const T = {
@@ -438,13 +438,13 @@ export default function App() {
     window.gtag = function(){ window.dataLayer.push(arguments); };
     window.gtag('js', new Date());
     window.gtag('config', GA_MEASUREMENT_ID);
-    // Load Crisp chat — uncomment when you have a real Crisp ID
-    // window.$crisp = [];
-    // window.CRISP_WEBSITE_ID = CRISP_WEBSITE_ID;
-    // const script2 = document.createElement('script');
-    // script2.src = 'https://client.crisp.chat/l.js';
-    // script2.async = true;
-    // document.head.appendChild(script2);
+    // Load Crisp chat
+    window.$crisp = [];
+    window.CRISP_WEBSITE_ID = CRISP_WEBSITE_ID;
+    const script2 = document.createElement('script');
+    script2.src = 'https://client.crisp.chat/l.js';
+    script2.async = true;
+    document.head.appendChild(script2);
   }, []);
 
   // ── Auto-logout after 15 minutes of inactivity ──────────────────────────
