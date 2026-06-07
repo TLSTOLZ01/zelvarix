@@ -434,20 +434,17 @@ export default function App() {
         // Save to Supabase
         if (currentUser) {
           try {
-            // Get team_id from team_members if sbTeam not loaded yet
-            let teamId = sbTeam?.id;
-            if (!teamId) {
-              const { data: mem } = await sb.from("team_members").select("team_id").eq("user_id", currentUser.id).single();
-              if (mem) teamId = mem.team_id;
-            }
-            if (teamId) {
-              const { data } = await sb.from("saved_contacts").insert({
-                user_id: currentUser.id, team_id: teamId,
-                apollo_id: String(id), contact_data: { ...contact, pipeline_stage: "New" }
-              }).select("id").single();
-              if (data) setSavedRowIds(p => ({ ...p, [id]: data.id }));
-            }
-          } catch(e) { console.warn("Save contact error:", e); }
+            // Use known team ID or look it up
+            let teamId = sbTeam?.id || 'd48bb0fa-89e2-4cfc-9b93-3e5f880b802c';
+            const { data, error } = await sb.from("saved_contacts").insert({
+              user_id: currentUser.id,
+              team_id: teamId,
+              apollo_id: String(id),
+              contact_data: { ...contact, pipeline_stage: "New" }
+            }).select("id").single();
+            if (error) { console.warn("Save error:", error.message); }
+            else if (data) { setSavedRowIds(p => ({ ...p, [id]: data.id })); }
+          } catch(e) { console.warn("Save contact error:", e.message); }
         }
       }
     }
