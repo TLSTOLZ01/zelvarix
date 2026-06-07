@@ -349,6 +349,11 @@ export default function App() {
   const activeUser = teamMembers.find(u => u.id === activeUserId) || teamMembers[0];
   const perms      = ROLE_PERMISSIONS[activeUser.role];
 
+  // Display name — use real logged-in user from Supabase, not mock team data
+  const displayName   = currentUser ? (onboardData.name || currentUser.email.split("@")[0]) : activeUser.name;
+  const displayEmail  = currentUser ? currentUser.email : activeUser.email;
+  const displayAvatar = displayName.split(" ").map(n => n[0]).join("").slice(0,2).toUpperCase();
+
   // Live PDL search function
   const runPDLSearch = useCallback(async (page = 1, append = false) => {
     setPdlLoading(true);
@@ -898,8 +903,8 @@ export default function App() {
           {/* User menu */}
           <div style={{ position:"relative" }}>
             <button onClick={()=>setShowUserMenu(s=>!s)} style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 10px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:4, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
-              <div style={{ width:24, height:24, borderRadius:3, background:ROLE_PERMISSIONS[activeUser.role].bg, border:`1px solid ${ROLE_PERMISSIONS[activeUser.role].border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, color:ROLE_PERMISSIONS[activeUser.role].color }}>{activeUser.avatar}</div>
-              <span style={{ fontSize:12, fontWeight:500, color:T.inkl }}>{activeUser.name}</span>
+              <div style={{ width:24, height:24, borderRadius:3, background:T.greenl, border:`1px solid ${T.greenb}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, color:T.green }}>{displayAvatar}</div>
+              <span style={{ fontSize:12, fontWeight:500, color:T.inkl }}>{displayName}</span>
               <span style={{ fontSize:10, color:T.inkmut }}>{showUserMenu?"▲":"▼"}</span>
             </button>
             {showUserMenu && (
@@ -919,7 +924,11 @@ export default function App() {
                   );
                 })}
                 <div style={{ borderTop:`1px solid ${T.border}`, padding:"8px 14px" }}>
+                  <div style={{ padding:"8px 14px 6px", borderTop:`1px solid ${T.border}` }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:T.ink, marginBottom:2 }}>{displayName}</div>
+                  <div style={{ fontSize:11, color:T.inkm, marginBottom:10 }}>{displayEmail}</div>
                   <button onClick={async()=>{ await sb.auth.signOut(); setCurrentUser(null); setSbTeam(null); setAppView("auth"); setShowUserMenu(false); }} style={{ fontSize:12, color:T.red, background:T.redl, border:`1px solid ${T.redb}`, borderRadius:4, padding:"6px 12px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", gap:6, width:"100%", justifyContent:"center", fontWeight:500 }}>⏏ Sign out</button>
+                </div>
                 </div>
               </div>
             )}
