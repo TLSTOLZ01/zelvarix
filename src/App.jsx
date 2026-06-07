@@ -71,6 +71,18 @@ const SENIORITY    = ["Any Seniority","Owner","Founder","C-Suite","Partner","VP"
 const DEPARTMENTS  = ["Any Department","Accounting","Administrative","Business Development","Consulting","Engineering","Finance","Healthcare Services","Human Resources","Information Technology","Legal","Marketing","Operations","Product Management","Purchasing","Research","Sales","Support"];
 const REVENUES     = ["Any Revenue","<$1M","$1M-$5M","$5M-$10M","$10M-$25M","$25M-$50M","$50M-$100M","$100M-$250M","$250M-$500M","$500M+"];
 
+const US_STATES = [
+  "Any State",
+  "Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut",
+  "Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa",
+  "Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan",
+  "Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada",
+  "New Hampshire","New Jersey","New Mexico","New York","North Carolina",
+  "North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island",
+  "South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont",
+  "Virginia","Washington","West Virginia","Wisconsin","Wyoming"
+];
+
 const ROLE_PERMISSIONS = {
   admin:   { canExport:true,  canInvite:true,  canManageLists:true,  canViewTeam:true,  canManageBilling:true,  canSearch:true, label:"Admin",    color:T.green,  bg:T.greenl,  border:T.greenb },
   manager: { canExport:true,  canInvite:true,  canManageLists:true,  canViewTeam:true,  canManageBilling:false, canSearch:true, label:"Manager",  color:T.amber,  bg:T.amberl,  border:T.amberb },
@@ -301,7 +313,7 @@ export default function App() {
   // Main app state
   const [view, setView]               = useState("discover");
   const [searchQuery, setSearchQuery] = useState("");
-  const [filters, setFilters]         = useState({ industry:"All Industries", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue" });
+  const [filters, setFilters]         = useState({ industry:"All Industries", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" });
   const [selectedContact, setSelectedContact] = useState(null);
   const [aiContact, setAiContact]     = useState(null);
   const [savedIds, setSavedIds]       = useState(new Set());
@@ -962,6 +974,14 @@ export default function App() {
                     {REVENUES.map(o=><option key={o}>{o}</option>)}
                   </select>
                 )},
+                { label:"State", jsx: (
+                  <select style={selectStyle} value={filters.state} onChange={e=>setFilters(p=>({...p,state:e.target.value}))}>
+                    {US_STATES.map(o=><option key={o}>{o}</option>)}
+                  </select>
+                )},
+                { label:"City", jsx: (
+                  <input className="input-base" value={filters.city} onChange={e=>setFilters(p=>({...p,city:e.target.value}))} placeholder="e.g. Houston" style={{ fontSize:12, padding:"7px 10px" }} />
+                )},
               ].map(f=>(
                 <div key={f.label} style={{ marginBottom:14 }}>
                   <div style={{ fontSize:11, fontWeight:500, color:T.inkl, marginBottom:5 }}>{f.label}</div>
@@ -969,7 +989,7 @@ export default function App() {
                 </div>
               ))}
 
-              <button onClick={()=>{ setSearchQuery(""); setFilters({ industry:"All Industries", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue" }); }} style={{ fontSize:11, color:T.inkmut, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textDecoration:"underline", marginTop:4 }}>Reset</button>
+              <button onClick={()=>{ setSearchQuery(""); setFilters({ industry:"All Industries", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" }); }} style={{ fontSize:11, color:T.inkmut, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textDecoration:"underline", marginTop:4 }}>Reset</button>
             </div>
 
             {/* Results table */}
@@ -1022,7 +1042,7 @@ export default function App() {
                   <div style={{ textAlign:"center", padding:"60px 20px" }}>
                     <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.inkm, marginBottom:8 }}>No results found</div>
                     <div style={{ fontSize:13, color:T.inkmut, marginBottom:16 }}>Try adjusting your filters or search term.</div>
-                    <button onClick={()=>{ setSearchQuery(""); setFilters({ industry:"All Industries", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue" }); }} style={{ fontSize:12, padding:"7px 16px", background:T.ink, border:"none", borderRadius:3, color:T.cream, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Clear filters</button>
+                    <button onClick={()=>{ setSearchQuery(""); setFilters({ industry:"All Industries", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" }); }} style={{ fontSize:12, padding:"7px 16px", background:T.ink, border:"none", borderRadius:3, color:T.cream, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Clear filters</button>
                   </div>
                 ) : (
                   <>{sorted.map(c=>(
