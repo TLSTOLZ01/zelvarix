@@ -303,6 +303,7 @@ export default function App() {
   const [authMode, setAuthMode] = useState("login");
   const [loginData, setLoginData]   = useState({ email:"", password:"" });
   const [signupData, setSignupData] = useState({ name:"", email:"", password:"", confirm:"" });
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [authError, setAuthError]   = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [splashDone, setSplashDone]   = useState(false);
@@ -636,6 +637,7 @@ export default function App() {
     if (!signupData.email.includes("@"))     { setAuthError("Enter a valid email."); return; }
     if (signupData.password.length<8)        { setAuthError("Password must be 8+ characters."); return; }
     if (signupData.password!==signupData.confirm) { setAuthError("Passwords do not match."); return; }
+    if (!termsAccepted) { setAuthError("You must agree to the Terms of Service and Privacy Policy to continue."); return; }
     setAuthLoading(true);
     // 1. Create Supabase auth user
     const { data, error } = await sb.auth.signUp({ email: signupData.email, password: signupData.password, options: { data: { name: signupData.name }, emailRedirectTo: 'https://www.zelvarix.ai' } });
@@ -643,7 +645,7 @@ export default function App() {
     const user = data.user;
     setCurrentUser(user);
     // 2. Create profile
-    await sb.from("profiles").insert({ id: user.id, name: signupData.name });
+    await sb.from("profiles").insert({ id: user.id, name: signupData.name, terms_accepted_at: new Date().toISOString() });
     // 3. Create team
     const planCredits = { starter:200, pro:1000, team:5000, enterprise:999999 };
     const planSeats   = { starter:1,   pro:10,   team:50,   enterprise:9999   };
@@ -1168,8 +1170,19 @@ export default function App() {
                   <input className="input-base" type="password" value={signupData.confirm} onChange={e=>setSignupData(p=>({...p,confirm:e.target.value}))} placeholder="Re-enter password" onKeyDown={e=>e.key==="Enter"&&handleSignup()} />
                 </div>
               )}
+              {!isLogin && (
+                <label style={{ display:"flex", alignItems:"flex-start", gap:8, fontSize:12, color:T.inkm, cursor:"pointer", lineHeight:1.6 }}>
+                  <input type="checkbox" checked={termsAccepted} onChange={e=>setTermsAccepted(e.target.checked)} style={{ marginTop:2, cursor:"pointer", flexShrink:0 }} />
+                  <span>
+                    I agree to the{" "}
+                    <button type="button" onClick={(e)=>{e.preventDefault(); setAppView("terms");}} style={{ color:T.green, fontWeight:600, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontSize:12, padding:0, textDecoration:"underline" }}>Terms of Service</button>
+                    {" "}and{" "}
+                    <button type="button" onClick={(e)=>{e.preventDefault(); setAppView("privacy");}} style={{ color:T.green, fontWeight:600, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontSize:12, padding:0, textDecoration:"underline" }}>Privacy Policy</button>
+                  </span>
+                </label>
+              )}
               {authError && <div style={{ fontSize:12, color:T.red, background:T.redl, border:`1px solid ${T.redb}`, borderRadius:4, padding:"8px 12px" }}>⚠ {authError}</div>}
-              <button onClick={isLogin?handleLogin:handleSignup} disabled={authLoading} style={{ padding:"11px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:14, cursor:authLoading?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:authLoading?.7:1, marginTop:4 }}>
+              <button onClick={isLogin?handleLogin:handleSignup} disabled={authLoading || (!isLogin && !termsAccepted)} style={{ padding:"11px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:14, cursor:(authLoading || (!isLogin && !termsAccepted))?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:(authLoading || (!isLogin && !termsAccepted))?.5:1, marginTop:4 }}>
                 {authLoading ? <><Spinner />{isLogin?"Signing in…":"Creating account…"}</> : isLogin?"Sign in →":"Create account →"}
               </button>
             </div>
