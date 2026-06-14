@@ -664,6 +664,12 @@ export default function App() {
       setSbTeam(team);
       await sb.from("team_members").insert({ team_id: team.id, user_id: user.id, role:"admin", status:"active" });
     }
+    // 4. Send welcome email (fire-and-forget — never blocks signup)
+    fetch('/api/welcome-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: signupData.name, email: signupData.email }),
+    }).catch(e => console.warn('Welcome email error:', e));
     setAuthLoading(false);
     setOnboardData(p=>({...p, name:signupData.name}));
     setAppView("onboard");  // Always go to onboarding after signup
