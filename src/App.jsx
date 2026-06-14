@@ -538,12 +538,21 @@ export default function App() {
         const { data: profile } = await sb.from("profiles").select("*").eq("id", user.id).single();
         if (profile) setOnboardData({ name: profile.name||"", company: profile.company||"", role: profile.role||"", goal: profile.goal||"" });
         // Load team
-        const { data: mem } = await sb.from("team_members").select("team_id, role").eq("user_id", user.id).single();
+        const { data: mem } = await sb.from("team_members").select("team_id, role").eq("user_id", user.id).maybeSingle();
         if (mem) {
           const { data: team } = await sb.from("teams").select("*").eq("id", mem.team_id).single();
           if (team) { setSbTeam(team); setSelectedPlan(team.plan); }
-          const { data: members } = await sb.from("team_members").select("id, role, status, joined_at, profiles:user_id(id, name)").eq("team_id", mem.team_id);
-          if (members) setTeamMembers(members.map((m,i) => ({ id: m.profiles?.id || i, name: m.profiles?.name || "Member", email:"", role: m.role, status: m.status, joined: new Date(m.joined_at).toLocaleDateString("en-US",{month:"short",year:"numeric"}), lastActive:"—", avatar:(m.profiles?.name||"??").split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase(), searches:0, exports:0 })));
+          const { data: members } = await sb.from("team_members").select("id, user_id, role, status, joined_at").eq("team_id", mem.team_id);
+          if (members && members.length > 0) {
+            const userIds = members.map(m => m.user_id).filter(Boolean);
+            const { data: profilesData } = await sb.from("profiles").select("id, name").in("id", userIds);
+            const profileMap = {};
+            (profilesData||[]).forEach(p => { profileMap[p.id] = p; });
+            setTeamMembers(members.map((m,i) => {
+              const p = profileMap[m.user_id];
+              return { id: p?.id || m.user_id || i, name: p?.name || "Member", email:"", role: m.role, status: m.status, joined: new Date(m.joined_at).toLocaleDateString("en-US",{month:"short",year:"numeric"}), lastActive:"—", avatar:(p?.name||"??").split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase(), searches:0, exports:0 };
+            }));
+          }
           // Load lists
           const { data: lsts } = await sb.from("lists").select("id, name, list_contacts(count)").eq("team_id", mem.team_id);
           if (lsts) setLists(lsts.map(l => ({ id: l.id, name: l.name, count: l.list_contacts?.[0]?.count || 0 })));
@@ -604,7 +613,7 @@ export default function App() {
     const { data: profile } = await sb.from("profiles").select("*").eq("id", user.id).single();
     if (profile) setOnboardData({ name: profile.name||"", company: profile.company||"", role: profile.role||"", goal: profile.goal||"" });
     // Load team
-    const { data: mem } = await sb.from("team_members").select("team_id, role").eq("user_id", user.id).single();
+    const { data: mem } = await sb.from("team_members").select("team_id, role").eq("user_id", user.id).maybeSingle();
     if (mem) {
       const { data: team } = await sb.from("teams").select("*").eq("id", mem.team_id).single();
       if (team) { setSbTeam(team); setSelectedPlan(team.plan); }
