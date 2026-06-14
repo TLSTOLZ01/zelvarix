@@ -186,7 +186,7 @@ const FAQS = [
   { q:"What is a credit?", a:"One credit = one contact reveal (verified email or phone). Searching and filtering is always free — you only spend a credit when you reveal contact details." },
   { q:"Do unused credits roll over?", a:"Credits reset monthly on your billing date. On Team and Enterprise plans you can purchase additional top-ups at any time." },
   { q:"Can I change plans anytime?", a:"Yes. Upgrade or downgrade at any time. Upgrades are prorated immediately; downgrades take effect at the next billing cycle." },
-  { q:"Is there a free trial?", a:"Every paid plan starts with a 14-day free trial — no credit card required. Full access to all features during the trial." },
+  { q:"Is there a free trial?", a:"Every paid plan starts with a 7-day free trial — no credit card required. Full access to all features during the trial." },
   { q:"How does team billing work?", a:"Pro and Team plans are billed per seat per month. Credits are shared across the team and managed by your Admin." },
   { q:"What happens if we go over our credit limit?", a:"You'll receive an email at 80% usage. Once exhausted you can purchase top-up credits ($0.10/credit) or upgrade. Contact reveals pause — your data and lists are never affected." },
   { q:"Do you offer nonprofit or startup discounts?", a:"Yes. Verified nonprofits receive 40% off. Seed-stage startups (under $1M ARR) receive 30% off for the first year." },
@@ -707,7 +707,7 @@ export default function App() {
             Pay for what you<br /><span style={{ color:T.green, fontStyle:"italic" }}>actually use.</span>
           </h1>
           <p style={{ fontSize:16, color:T.inkm, lineHeight:1.7, marginBottom:32 }}>
-            14-day free trial on every plan. No card required.<br />Searching is always free — credits only spend on contact reveals.
+            7-day free trial on every plan. No card required.<br />Searching is always free — credits only spend on contact reveals.
           </p>
           {/* Toggle */}
           <div style={{ display:"inline-flex", alignItems:"center", gap:0, background:"#fff", border:`1px solid ${T.border}`, borderRadius:40, padding:"4px 5px" }}>
@@ -818,12 +818,12 @@ export default function App() {
         <section style={{ background:T.greenl, borderTop:`1px solid ${T.greenb}`, padding:"64px 24px", textAlign:"center" }}>
           <div style={{ maxWidth:520, margin:"0 auto" }}>
             <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:38, color:T.ink, letterSpacing:-1, marginBottom:10, lineHeight:1.1 }}>Ready to find your next best customer?</div>
-            <div style={{ fontSize:14, color:T.inkm, marginBottom:28, lineHeight:1.7 }}>Start your 14-day free trial. No credit card required.<br />Full access to all Pro features from day one.</div>
+            <div style={{ fontSize:14, color:T.inkm, marginBottom:28, lineHeight:1.7 }}>Start your 7-day free trial. No credit card required.<br />Full access to all Pro features from day one.</div>
             <div style={{ display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" }}>
               <button onClick={()=>choosePlan(PLANS[1])} style={{ padding:"12px 28px", background:T.green, border:"none", borderRadius:5, color:"#fff", fontWeight:700, fontSize:15, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Start Pro free →</button>
               <button onClick={()=>{ setAppView("auth"); setAuthMode("login"); }} style={{ padding:"12px 22px", background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, color:T.inkl, fontWeight:500, fontSize:15, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Sign in</button>
             </div>
-            <div style={{ marginTop:14, fontSize:12, color:T.inkmut }}>No card required · Cancel anytime · 14-day trial on all plans</div>
+            <div style={{ marginTop:14, fontSize:12, color:T.inkmut }}>No card required · Cancel anytime · 7-day trial on all plans</div>
           </div>
         </section>
 
@@ -1130,7 +1130,7 @@ export default function App() {
         <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:48 }}>
           <div style={{ width:"100%", maxWidth:400, animation:"fadeIn .4s ease" }}>
             <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:30, color:T.ink, marginBottom:6, letterSpacing:-.5 }}>{isLogin?"Welcome back":"Create account"}</div>
-            <div style={{ fontSize:13, color:T.inkm, marginBottom:28 }}>{isLogin?"Sign in to your workspace":"Start your 14-day free trial. No card required."}</div>
+            <div style={{ fontSize:13, color:T.inkm, marginBottom:28 }}>{isLogin?"Sign in to your workspace":"Start your 7-day free trial. No card required."}</div>
 
             {/* Social */}
             <div style={{ display:"flex", gap:10, marginBottom:20 }}>
