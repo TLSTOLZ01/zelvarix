@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { searchPeople, enrichPerson } from "./pdl-integration.js";
 import { createClient } from "@supabase/supabase-js";
 
+
 // ─── SUPABASE CLIENT ─────────────────────────────────────────────────────────
 const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL || "https://zeuvisaieeswhvddmyje.supabase.co";
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_uJdrzhgEpbY8OW-1sgdnvw_EPifiqor";
