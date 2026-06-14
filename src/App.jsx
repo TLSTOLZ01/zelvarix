@@ -1541,7 +1541,7 @@ export default function App() {
                       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12, padding:"9px 12px", background:isOver?bg:"#fff", border:`1.5px solid ${isOver?col:border}`, borderRadius:5, transition:"all .15s" }}>
                         <span style={{ fontSize:14, color:col }}>{icon}</span>
                         <span style={{ fontSize:12, fontWeight:600, color:col, flex:1 }}>{stage}</span>
-                        <span style={{ fontSize:11, color:T.inkmut, fontFamily:"'DM Mono',monospace", background:isOver?col:"rgba(0,0,0,.06)", color:isOver?"#fff":T.inkmut, padding:"1px 7px", borderRadius:3, transition:"all .15s" }}>{stageContacts.length}</span>
+                        <span style={{ fontSize:11, fontFamily:"'DM Mono',monospace", background:isOver?col:"rgba(0,0,0,.06)", color:isOver?"#fff":T.inkmut, padding:"1px 7px", borderRadius:3, transition:"all .15s" }}>{stageContacts.length}</span>
                       </div>
 
                       {/* Drop zone indicator */}
