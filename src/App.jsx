@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { searchPeople, enrichPerson } from "./pdl-integration.js";
 import { createClient } from "@supabase/supabase-js";
 
-
 // ─── SUPABASE CLIENT ─────────────────────────────────────────────────────────
 const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL || "https://zeuvisaieeswhvddmyje.supabase.co";
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_uJdrzhgEpbY8OW-1sgdnvw_EPifiqor";
@@ -12,7 +11,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 const ANTHROPIC_MODEL = "claude-sonnet-4-20250514";
 
 // ── ANALYTICS & MONITORING ───────────────────────────────────────────────────
-const GA_MEASUREMENT_ID = 'G-XXXXXXXXXX'; // Replace with your real GA4 ID
+const GA_MEASUREMENT_ID = 'G-L19SG7QRWX';
 const CRISP_WEBSITE_ID  = '2562ef43-438d-4a73-ad32-16d5f901c70a';
 
 // ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
