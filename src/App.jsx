@@ -327,6 +327,10 @@ export default function App() {
   const [pipelineStages, setPipelineStages] = useState({}); // contact id -> stage
   const [draggedId, setDraggedId]         = useState(null);
   const [dragOverStage, setDragOverStage] = useState(null);
+  const [contactForm, setContactForm]   = useState({ name:"", email:"", company:"", subject:"General inquiry", message:"" });
+  const [contactSent, setContactSent]   = useState(false);
+  const [contactSending, setContactSending] = useState(false);
+  const [contactError, setContactError] = useState("");
   const [selectedForExport, setSelectedForExport] = useState(new Set());
   const [selectMode, setSelectMode]   = useState(false);
   const [pdlContacts, setPdlContacts]   = useState([]);
@@ -857,11 +861,7 @@ export default function App() {
   // ══════════════════════════════════════════════════════════════════════════
   // LEGAL / CONTACT / ABOUT PAGES
   // ══════════════════════════════════════════════════════════════════════════
-  // Contact form state — must be outside conditional block (Rules of Hooks)
-  const [contactForm, setContactForm] = useState({ name:"", email:"", company:"", subject:"General inquiry", message:"" });
-  const [contactSent, setContactSent] = useState(false);
-  const [contactSending, setContactSending] = useState(false);
-  const [contactError, setContactError] = useState("");
+  const legalPages = ["privacy", "terms", "cookies", "contact", "about", "security"];
 
   async function submitContact() {
     if (!contactForm.name || !contactForm.email || !contactForm.message) { setContactError("Please fill in all required fields."); return; }
@@ -873,8 +873,6 @@ export default function App() {
     } catch { setContactError("Failed to send. Please email support@zelvarix.ai directly."); }
     setContactSending(false);
   }
-
-  const legalPages = ["privacy", "terms", "cookies", "contact", "about", "security"];
   if (legalPages.includes(appView)) {
     const pages = {
       privacy: {
