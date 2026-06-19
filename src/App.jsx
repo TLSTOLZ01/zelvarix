@@ -857,6 +857,23 @@ export default function App() {
   // ══════════════════════════════════════════════════════════════════════════
   // LEGAL / CONTACT / ABOUT PAGES
   // ══════════════════════════════════════════════════════════════════════════
+  // Contact form state — must be outside conditional block (Rules of Hooks)
+  const [contactForm, setContactForm] = useState({ name:"", email:"", company:"", subject:"General inquiry", message:"" });
+  const [contactSent, setContactSent] = useState(false);
+  const [contactSending, setContactSending] = useState(false);
+  const [contactError, setContactError] = useState("");
+
+  async function submitContact() {
+    if (!contactForm.name || !contactForm.email || !contactForm.message) { setContactError("Please fill in all required fields."); return; }
+    setContactSending(true); setContactError("");
+    try {
+      const res = await fetch('/api/contact', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(contactForm) });
+      if (!res.ok) throw new Error('Send failed');
+      setContactSent(true);
+    } catch { setContactError("Failed to send. Please email support@zelvarix.ai directly."); }
+    setContactSending(false);
+  }
+
   const legalPages = ["privacy", "terms", "cookies", "contact", "about", "security"];
   if (legalPages.includes(appView)) {
     const pages = {
@@ -931,21 +948,8 @@ export default function App() {
     };
 
     const page = pages[appView];
-    const [contactForm, setContactForm] = React.useState({ name:"", email:"", company:"", subject:"General inquiry", message:"" });
-    const [contactSent, setContactSent] = React.useState(false);
-    const [contactSending, setContactSending] = React.useState(false);
-    const [contactError, setContactError] = React.useState("");
 
-    async function submitContact() {
-      if (!contactForm.name || !contactForm.email || !contactForm.message) { setContactError("Please fill in all required fields."); return; }
-      setContactSending(true); setContactError("");
-      try {
-        const res = await fetch('/api/contact', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(contactForm) });
-        if (!res.ok) throw new Error('Send failed');
-        setContactSent(true);
-      } catch { setContactError("Failed to send. Please email support@zelvarix.ai directly."); }
-      setContactSending(false);
-    }
+    async function submitContactLegal() { await submitContact(); }
 
     return (
       <div style={{ minHeight:"100vh", background:T.cream, fontFamily:"'DM Sans',sans-serif", color:T.ink }}>
