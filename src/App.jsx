@@ -1985,9 +1985,7 @@ export default function App() {
           </div>
         )}
 
-      </div>
-
-      {/* ── SETTINGS VIEW ─────────────────────────────────────────────────── */}
+        {/* ── SETTINGS VIEW ─────────────────────────────────────────────────── */}
         {view==="settings" && (
           <div style={{ flex:1, padding:"28px 32px", overflowY:"auto", paddingBottom:60 }}>
             <SectionHeading label="Settings" sub="Manage your account preferences and integrations" />
@@ -2030,6 +2028,8 @@ export default function App() {
             </div>
           </div>
         )}
+
+      </div>
 
       {/* ── BULK EMAIL MODAL ──────────────────────────────────────────────── */}
       {showBulkEmail && (
