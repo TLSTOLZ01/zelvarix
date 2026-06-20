@@ -8,7 +8,7 @@ const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 
 // ─── APOLLO / AI CONFIG ──────────────────────────────────────────────────────
-const ANTHROPIC_MODEL = "claude-sonnet-4-20250514";
+const ANTHROPIC_MODEL = "claude-sonnet-4-6";
 
 // ── ANALYTICS & MONITORING ───────────────────────────────────────────────────
 const GA_MEASUREMENT_ID = 'G-L19SG7QRWX';
