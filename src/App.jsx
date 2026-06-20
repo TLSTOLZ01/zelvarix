@@ -247,7 +247,7 @@ function AIPanel({ contact, onClose }) {
   const prompts = {
     ice:   `You are a world-class B2B sales coach. Write 3 highly personalized conversation starters for this prospect. Each 1-2 sentences. Specific, natural, no clichés.\n\nProspect: ${contact.name}, ${contact.title} at ${contact.company} (${contact.industry}, ${contact.location}, ${contact.employees} employees).\n\nFormat: numbered list, no intro.`,
     score: `You are a B2B sales intelligence AI. Analyze this prospect:\n1. Lead score rationale (2-3 sentences for ${contact.score}/100)\n2. Top 3 buying signals\n3. One risk factor\n\nProspect: ${contact.name}, ${contact.title} at ${contact.company} (${contact.industry}, ${contact.revenue} revenue). Tags: ${contact.tags.join(", ")}\n\nBe direct and concise.`,
-    email: `Write a short personalized cold outreach email (under 120 words) from a sales rep at a B2B prospecting software company. Sound human, not salesy.\n\nProspect: ${contact.name}, ${contact.title} at ${contact.company} (${contact.industry}).\n\nFormat:\nSubject: [subject]\n[body]`,
+    email: `Write a short personalized cold outreach email (under 120 words) from a sales rep at a B2B prospecting software company. Sound human, not salesy.\n\nProspect: ${contact.name}, ${contact.title} at ${contact.company} (${contact.industry}).\n\nEnd with a call to action to book a quick call.${bookingLink ? ` Use this booking link: ${bookingLink}` : ""}\n\nFormat:\nSubject: [subject]\n[body]`,
   };
 
   async function run(t) {
@@ -353,6 +353,11 @@ export default function App() {
   const [cancelPassword, setCancelPassword]   = useState("");
   const [cancelError, setCancelError]         = useState("");
   const [cancelComplete, setCancelComplete]   = useState(false);
+  const [bookingLink, setBookingLink]         = useState("");
+  const [bulkEmailContacts, setBulkEmailContacts] = useState([]);
+  const [bulkEmailResults, setBulkEmailResults]   = useState({});
+  const [bulkEmailLoading, setBulkEmailLoading]   = useState(false);
+  const [showBulkEmail, setShowBulkEmail]         = useState(false);
   const [inviteRole, setInviteRole]   = useState("rep");
   // Dynamic billing derived from selected plan
   const activePlan   = PLANS.find(p => p.id === selectedPlan) || PLANS[1]; // default Pro
@@ -385,8 +390,8 @@ export default function App() {
       setPdlHasMore(result.hasMore);
       setPdlPage(page);
     } catch(err) {
-      setPdlError("Live search unavailable — showing sample data.");
-      setUseLiveData(false);
+      setPdlError("Live search error — check your PDL API key or try again.");
+      // Don't reset to sample data — keep live mode active so user can retry
     }
     setPdlLoading(false);
   }, [filters, searchQuery]);
@@ -485,6 +490,12 @@ export default function App() {
     setTeamMembers(p => [...p, { id:Date.now(), name:inviteEmail.split("@")[0], email:inviteEmail, role:inviteRole, status:"invited", joined:"—", lastActive:"—", avatar:initials, searches:0, exports:0 }]);
     setInviteEmail(""); setShowInviteModal(false);
   }
+
+  // ── Load booking link from localStorage ─────────────────────────────────
+  useEffect(() => {
+    const saved = localStorage.getItem('zelvarix_booking_link');
+    if (saved) setBookingLink(saved);
+  }, []);
 
   // ── Google Analytics ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -1258,6 +1269,7 @@ export default function App() {
     { id:"lists",     label:"Lists" },
     ...(perms.canViewTeam     ? [{ id:"team",    label:"Team"    }] : []),
     ...(perms.canManageBilling? [{ id:"billing", label:"Billing" }] : []),
+    { id:"settings", label:"Settings" },
   ];
 
   const selectStyle = { padding:"7px 10px", background:"#fff", border:`1px solid ${T.border}`, borderRadius:4, color:T.inkl, fontSize:12, fontFamily:"'DM Sans',sans-serif", outline:"none", cursor:"pointer", width:"100%", appearance:"none" };
@@ -1412,6 +1424,14 @@ export default function App() {
                 <div style={{ display:"flex", gap:8 }}>
                   {selectMode && selectedForExport.size>0 && (
                     <button onClick={()=>downloadCSV(sorted.filter(c=>selectedForExport.has(c.id)))} style={{ fontSize:12, fontWeight:500, padding:"5px 12px", border:`1px solid ${T.greenb}`, borderRadius:3, background:T.greenl, color:T.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>↓ Selected ({selectedForExport.size})</button>
+                  )}
+                  {selectMode && selectedForExport.size>0 && (
+                    <button onClick={()=>{
+                      const selected = sorted.filter(c=>selectedForExport.has(c.id));
+                      setBulkEmailContacts(selected);
+                      setBulkEmailResults({});
+                      setShowBulkEmail(true);
+                    }} style={{ fontSize:12, fontWeight:600, padding:"5px 12px", border:`1px solid ${T.greenb}`, borderRadius:3, background:T.green, color:"#fff", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>✦ Generate emails ({selectedForExport.size})</button>
                   )}
                   {!perms.canExport
                     ? <span style={{ fontSize:11, color:T.amber, background:T.amberl, border:`1px solid ${T.amberb}`, borderRadius:3, padding:"5px 10px" }}>🔒 Viewer — no export</span>
@@ -1966,6 +1986,124 @@ export default function App() {
         )}
 
       </div>
+
+      {/* ── SETTINGS VIEW ─────────────────────────────────────────────────── */}
+        {view==="settings" && (
+          <div style={{ flex:1, padding:"28px 32px", overflowY:"auto", paddingBottom:60 }}>
+            <SectionHeading label="Settings" sub="Manage your account preferences and integrations" />
+
+            {/* Booking Link */}
+            <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:6, padding:"22px 24px", marginBottom:20 }}>
+              <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:20, color:T.ink, marginBottom:4 }}>Meeting booking link</div>
+              <div style={{ fontSize:13, color:T.inkm, marginBottom:16, lineHeight:1.7 }}>Your Calendly or Cal.com booking link. When set, it's automatically appended to every AI-drafted outreach email so prospects can book a call directly.</div>
+              <div style={{ display:"flex", gap:10 }}>
+                <input className="input-base" value={bookingLink} onChange={e=>setBookingLink(e.target.value)} placeholder="https://calendly.com/your-name/30min" style={{ flex:1 }} />
+                <button onClick={()=>{ localStorage.setItem('zelvarix_booking_link', bookingLink); alert('Booking link saved!'); }} style={{ padding:"9px 20px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>Save</button>
+              </div>
+              {bookingLink && (
+                <div style={{ marginTop:10, fontSize:12, color:T.green }}>✓ Booking link active — will appear in AI-drafted emails</div>
+              )}
+            </div>
+
+            {/* Profile info */}
+            <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:6, padding:"22px 24px", marginBottom:20 }}>
+              <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:20, color:T.ink, marginBottom:16 }}>Account</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+                <div>
+                  <div style={{ fontSize:12, fontWeight:500, color:T.inkl, marginBottom:4 }}>Email</div>
+                  <div style={{ fontSize:13, color:T.inkm, padding:"9px 12px", background:T.paper, borderRadius:4, border:`1px solid ${T.border}` }}>{currentUser?.email || "—"}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize:12, fontWeight:500, color:T.inkl, marginBottom:4 }}>Name</div>
+                  <div style={{ fontSize:13, color:T.inkm, padding:"9px 12px", background:T.paper, borderRadius:4, border:`1px solid ${T.border}` }}>{displayName}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* AI email limits info */}
+            <div style={{ background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:6, padding:"18px 20px" }}>
+              <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:18, color:T.ink, marginBottom:8 }}>AI bulk email generation</div>
+              <div style={{ fontSize:13, color:T.inkl, lineHeight:1.8 }}>
+                Generate personalised outreach emails for multiple contacts at once using Claude AI. Available in the Discover tab — select contacts then click "✦ Generate emails".<br/>
+                <strong>Starter:</strong> Single contact AI only &nbsp;·&nbsp; <strong>Pro:</strong> Up to 10 contacts at once &nbsp;·&nbsp; <strong>Team:</strong> Unlimited
+              </div>
+            </div>
+          </div>
+        )}
+
+      {/* ── BULK EMAIL MODAL ──────────────────────────────────────────────── */}
+      {showBulkEmail && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.5)", zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div style={{ background:"#fff", borderRadius:8, width:"100%", maxWidth:680, maxHeight:"85vh", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+            <div style={{ padding:"20px 24px", borderBottom:`1px solid ${T.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.ink }}>✦ AI bulk email generator</div>
+                <div style={{ fontSize:13, color:T.inkm, marginTop:2 }}>{bulkEmailContacts.length} contacts selected</div>
+              </div>
+              <button onClick={()=>{ setShowBulkEmail(false); setBulkEmailResults({}); }} style={{ fontSize:20, background:"none", border:"none", cursor:"pointer", color:T.inkm }}>✕</button>
+            </div>
+            <div style={{ overflowY:"auto", flex:1 }}>
+              {bulkEmailContacts.map(c => (
+                <div key={c.id} style={{ padding:"16px 24px", borderBottom:`1px solid ${T.border}` }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                    <div>
+                      <div style={{ fontSize:14, fontWeight:600, color:T.ink }}>{c.name}</div>
+                      <div style={{ fontSize:12, color:T.inkm }}>{c.title} · {c.company}</div>
+                    </div>
+                    {!bulkEmailResults[c.id] && !bulkEmailLoading && (
+                      <button onClick={async()=>{
+                        setBulkEmailLoading(true);
+                        try {
+                          const res = await fetch('/api/claude', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+                            model:"claude-sonnet-4-20250514", max_tokens:600,
+                            messages:[{ role:"user", content:`Write a short, personalized cold outreach email to ${c.name}, ${c.title} at ${c.company}. Industry: ${c.industry}. Keep it under 100 words, conversational, not salesy. End with a call to action to book a 15-minute call.${bookingLink ? ` Include this booking link: ${bookingLink}` : ""} Sign off as ${displayName} from Zelvarix.` }]
+                          })});
+                          const data = await res.json();
+                          const text = data.content?.[0]?.text || "Could not generate email.";
+                          setBulkEmailResults(p=>({...p, [c.id]: text}));
+                        } catch { setBulkEmailResults(p=>({...p, [c.id]: "Error generating email. Please try again."})); }
+                        setBulkEmailLoading(false);
+                      }} style={{ padding:"6px 14px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:4, color:T.green, fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>
+                        ✦ Generate
+                      </button>
+                    )}
+                  </div>
+                  {bulkEmailResults[c.id] && (
+                    <div>
+                      <div style={{ background:T.paper, border:`1px solid ${T.border}`, borderRadius:4, padding:"12px 14px", fontSize:13, color:T.inkl, lineHeight:1.7, whiteSpace:"pre-wrap", marginBottom:8 }}>{bulkEmailResults[c.id]}</div>
+                      <div style={{ display:"flex", gap:8 }}>
+                        <button onClick={()=>{ navigator.clipboard.writeText(bulkEmailResults[c.id]); }} style={{ padding:"5px 12px", background:"#fff", border:`1px solid ${T.border}`, borderRadius:3, fontSize:11, color:T.inkm, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>📋 Copy</button>
+                        <button onClick={()=>setBulkEmailResults(p=>{ const n={...p}; delete n[c.id]; return n; })} style={{ padding:"5px 12px", background:"#fff", border:`1px solid ${T.border}`, borderRadius:3, fontSize:11, color:T.inkm, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>↺ Regenerate</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div style={{ padding:"16px 24px", borderTop:`1px solid ${T.border}`, display:"flex", gap:10, justifyContent:"space-between", alignItems:"center" }}>
+              <div style={{ fontSize:12, color:T.inkmut }}>Emails are AI-generated — review before sending</div>
+              <button onClick={async()=>{
+                setBulkEmailLoading(true);
+                for (const c of bulkEmailContacts) {
+                  if (bulkEmailResults[c.id]) continue;
+                  try {
+                    const res = await fetch('/api/claude', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+                      model:"claude-sonnet-4-20250514", max_tokens:600,
+                      messages:[{ role:"user", content:`Write a short, personalized cold outreach email to ${c.name}, ${c.title} at ${c.company}. Industry: ${c.industry}. Keep it under 100 words, conversational, not salesy. End with a call to action to book a 15-minute call.${bookingLink ? ` Include this booking link: ${bookingLink}` : ""} Sign off as ${displayName} from Zelvarix.` }]
+                    })});
+                    const data = await res.json();
+                    const text = data.content?.[0]?.text || "Could not generate email.";
+                    setBulkEmailResults(p=>({...p, [c.id]: text}));
+                  } catch { setBulkEmailResults(p=>({...p, [c.id]: "Error generating email."})); }
+                }
+                setBulkEmailLoading(false);
+              }} style={{ padding:"10px 20px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:13, cursor:bulkEmailLoading?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", opacity:bulkEmailLoading?.6:1 }}>
+                {bulkEmailLoading ? "Generating…" : `✦ Generate all ${bulkEmailContacts.length} emails`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer links in app */}
       <div style={{ position:"fixed", bottom:0, left:0, right:0, padding:"6px 24px", background:"rgba(250,248,244,.95)", borderTop:`1px solid ${T.border}`, display:"flex", gap:16, zIndex:10, backdropFilter:"blur(4px)" }}>
