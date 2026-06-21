@@ -606,7 +606,7 @@ export default function App() {
   // Main app state
   const [view, setView]               = useState("discover");
   const [searchQuery, setSearchQuery] = useState("");
-  const [filters, setFilters]         = useState({ industry:"All Industries", naicsCode:null, size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" });
+  const [filters, setFilters]         = useState({ industry:"All Industries", naicsCode:null, companyKeyword:"", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" });
   const [selectedContact, setSelectedContact] = useState(null);
   const [aiContact, setAiContact]     = useState(null);
   const [savedIds, setSavedIds]         = useState(new Set());
@@ -672,7 +672,7 @@ export default function App() {
     setPdlLoading(true);
     setPdlError(null);
     try {
-      const result = await searchPeople({ filters, query: searchQuery, page, pageSize: 5, naicsCodes: filters.naicsCode ? [filters.naicsCode.code] : [] });
+      const result = await searchPeople({ filters, query: searchQuery, page, pageSize: 5, naicsCodes: filters.naicsCode ? [filters.naicsCode.code] : [], companyKeyword: filters.companyKeyword || "" });
       setPdlContacts(prev => append ? [...prev, ...result.contacts] : result.contacts);
       setPdlTotal(result.total);
       setPdlHasMore(result.hasMore);
@@ -692,18 +692,20 @@ export default function App() {
       runPDLSearch(1, false);
     }, 600);
     return () => clearTimeout(debounceRef.current);
-  }, [filters, searchQuery, useLiveData, filters.naicsCode?.code]);
+  }, [filters, searchQuery, useLiveData, filters.naicsCode?.code, filters.companyKeyword]);
 
   // Mock data filtered locally
   const mockFiltered = MOCK_CONTACTS.slice(0, 10).filter(c => {
     const q = searchQuery.toLowerCase();
     const mQ = !q || c.name.toLowerCase().includes(q) || c.company.toLowerCase().includes(q) || c.title.toLowerCase().includes(q) || c.industry.toLowerCase().includes(q) || c.location.toLowerCase().includes(q);
+    const ck = filters.companyKeyword ? filters.companyKeyword.toLowerCase() : "";
+    const mCK = !ck || c.company.toLowerCase().includes(ck);
     const mI = filters.naicsCode ? c.industry.toLowerCase().includes(filters.naicsCode.name.split(" ")[0].toLowerCase()) : (filters.industry === "All Industries" || c.industry === filters.industry);
     const mS = filters.size     === "Any Size"       || c.employees === filters.size;
     const mSn= filters.seniority=== "Any Seniority"  || c.seniority === filters.seniority;
     const mD = filters.department==="Any Department" || c.department === filters.department;
     const mR = filters.revenue==="Any Revenue"   || c.revenue === filters.revenue;
-    return mQ && mI && mS && mSn && mD && mR;
+    return mQ && mCK && mI && mS && mSn && mD && mR;
   });
 
   // Use live PDL data if toggled on, otherwise use mock
@@ -1671,6 +1673,9 @@ export default function App() {
                     {US_STATES.map(o=><option key={o}>{o}</option>)}
                   </select>
                 )},
+                { label:"Company Keyword", jsx: (
+                  <input className="input-base" value={filters.companyKeyword} onChange={e=>setFilters(p=>({...p,companyKeyword:e.target.value}))} placeholder="e.g. funeral, clinic…" style={{ fontSize:12, padding:"7px 10px" }} />
+                )},
                 { label:"City", jsx: (
                   <input className="input-base" value={filters.city} onChange={e=>setFilters(p=>({...p,city:e.target.value}))} placeholder="e.g. Houston" style={{ fontSize:12, padding:"7px 10px" }} />
                 )},
@@ -1681,7 +1686,7 @@ export default function App() {
                 </div>
               ))}
 
-              <button onClick={()=>{ setSearchQuery(""); setFilters({ industry:"All Industries", naicsCode:null, size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" }); }} style={{ fontSize:11, color:T.inkmut, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textDecoration:"underline", marginTop:4 }}>Reset</button>
+              <button onClick={()=>{ setSearchQuery(""); setFilters({ industry:"All Industries", naicsCode:null, companyKeyword:"", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" }); }} style={{ fontSize:11, color:T.inkmut, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textDecoration:"underline", marginTop:4 }}>Reset</button>
             </div>
 
             {/* Results table */}
@@ -1742,7 +1747,7 @@ export default function App() {
                   <div style={{ textAlign:"center", padding:"60px 20px" }}>
                     <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.inkm, marginBottom:8 }}>No results found</div>
                     <div style={{ fontSize:13, color:T.inkmut, marginBottom:16 }}>Try adjusting your filters or search term.</div>
-                    <button onClick={()=>{ setSearchQuery(""); setFilters({ industry:"All Industries", naicsCode:null, size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" }); }} style={{ fontSize:12, padding:"7px 16px", background:T.ink, border:"none", borderRadius:3, color:T.cream, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Clear filters</button>
+                    <button onClick={()=>{ setSearchQuery(""); setFilters({ industry:"All Industries", naicsCode:null, companyKeyword:"", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" }); }} style={{ fontSize:12, padding:"7px 16px", background:T.ink, border:"none", borderRadius:3, color:T.cream, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Clear filters</button>
                   </div>
                 ) : (
                   <>{sorted.map(c=>(
