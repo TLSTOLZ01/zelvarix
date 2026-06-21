@@ -12,8 +12,8 @@ export default async function handler(req, res) {
     const size = body.size || 5;
     const scroll_token = body.scroll_token || null;
     const filters = body.filters || {};
-    const query = body.query || '';
     const company_keyword = body.companyKeyword || '';
+    const query = body.query || '';
 
     const NAICS_TO_PDL = {
       '111':'farming','112':'farming','1141':'fishing',
