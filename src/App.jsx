@@ -2071,7 +2071,7 @@ export default function App() {
                         setBulkEmailLoading(true);
                         try {
                           const res = await fetch('/api/claude', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
-                            model:"claude-sonnet-4-6", max_tokens:600,,
+                            model:"claude-sonnet-4-6", max_tokens:600,
                             messages:[{ role:"user", content:`Write a short, personalized cold outreach email to ${c.name}, ${c.title} at ${c.company}. Industry: ${c.industry}. Keep it under 100 words, conversational, not salesy. End with a call to action to book a 15-minute call.${bookingLink ? ` Include this booking link: ${bookingLink}` : ""} Sign off as ${displayName} from Zelvarix.` }]
                           })});
                           const data = await res.json();
@@ -2104,7 +2104,7 @@ export default function App() {
                   if (bulkEmailResults[c.id]) continue;
                   try {
                     const res = await fetch('/api/claude', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
-                      model:"claude-sonnet-4-6", max_tokens:600,,
+                      model:"claude-sonnet-4-6", max_tokens:600,
                       messages:[{ role:"user", content:`Write a short, personalized cold outreach email to ${c.name}, ${c.title} at ${c.company}. Industry: ${c.industry}. Keep it under 100 words, conversational, not salesy. End with a call to action to book a 15-minute call.${bookingLink ? ` Include this booking link: ${bookingLink}` : ""} Sign off as ${displayName} from Zelvarix.` }]
                     })});
                     const data = await res.json();
