@@ -682,7 +682,7 @@ export default function App() {
       // Don't reset to sample data — keep live mode active so user can retry
     }
     setPdlLoading(false);
-  }, [filters, searchQuery]);
+  }, [filters, searchQuery, filters.naicsCode?.code]);
 
   // Re-run PDL search when filters or query change while in live mode
   useEffect(() => {
@@ -692,7 +692,7 @@ export default function App() {
       runPDLSearch(1, false);
     }, 600);
     return () => clearTimeout(debounceRef.current);
-  }, [filters, searchQuery, useLiveData]);
+  }, [filters, searchQuery, useLiveData, filters.naicsCode?.code]);
 
   // Mock data filtered locally
   const mockFiltered = MOCK_CONTACTS.slice(0, 10).filter(c => {
