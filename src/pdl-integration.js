@@ -1,19 +1,21 @@
 const PDL_PROXY = '/api/pdl-search';
-
+ 
 export function searchPeople(options) {
-  const filters  = (options && options.filters)  || {};
-  const query    = (options && options.query)    || '';
-  const pageSize = (options && options.pageSize) || 5;
+  const filters     = (options && options.filters)     || {};
+  const query       = (options && options.query)       || '';
+  const pageSize    = (options && options.pageSize)    || 5;
   const scrollToken = (options && options.scrollToken) || null;
-
+  const naicsCodes  = (options && options.naicsCodes)  || [];
+ 
   const body = {
     size: pageSize,
     filters: filters,
     query: query,
+    naics_codes: naicsCodes,
   };
-
+ 
   if (scrollToken) body.scroll_token = scrollToken;
-
+ 
   return fetch(PDL_PROXY, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -31,11 +33,11 @@ export function searchPeople(options) {
     };
   });
 }
-
+ 
 export function enrichPerson(contact) {
   return Promise.resolve(contact);
 }
-
+ 
 function mapPerson(p, i) {
   var exp = (p.experience && p.experience[0]) || {};
   var co  = exp.company || {};
@@ -46,7 +48,6 @@ function mapPerson(p, i) {
     partner:'Partner', vp:'VP', director:'Director',
     manager:'Manager', senior:'Senior', entry:'Entry-Level', training:'Intern'
   };
-
   var score = 50;
   if (em.valid) score += 15;
   if (['c_suite','vp','owner','founder'].indexOf(lvl) > -1) score += 15;
@@ -54,7 +55,6 @@ function mapPerson(p, i) {
   if (p.phone_numbers && p.phone_numbers.length) score += 7;
   if (p.linkedin_url) score += 3;
   if (score > 99) score = 99;
-
   return {
     id:          p.id || ('pdl_' + i),
     name:        p.full_name || 'Unknown',
@@ -76,7 +76,7 @@ function mapPerson(p, i) {
     _linkedinUrl: p.linkedin_url,
   };
 }
-
+ 
 function mapEmployees(count) {
   if (!count) return 'Unknown';
   if (count <= 1)     return 'Self-Employed';
@@ -88,4 +88,3 @@ function mapEmployees(count) {
   if (count <= 5000)  return '1,001-5,000';
   if (count <= 10000) return '5,001-10,000';
   return '10,001+';
-}
