@@ -692,7 +692,7 @@ export default function App() {
       runPDLSearch(1, false);
     }, 600);
     return () => clearTimeout(debounceRef.current);
-  }, [filters, searchQuery, useLiveData, filters.naicsCode?.code, filters.companyKeyword]);
+  }, [filters, searchQuery, useLiveData, filters.naicsCode?.code]);
 
   // Mock data filtered locally
   const mockFiltered = MOCK_CONTACTS.slice(0, 10).filter(c => {
@@ -1638,7 +1638,7 @@ export default function App() {
 
               {/* Search */}
               <div style={{ marginBottom:16 }}>
-                <input className="input-base" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="Search name, company…" style={{ fontSize:12, padding:"7px 10px" }} />
+                <input className="input-base" value={searchQuery} onChange={e=>{ setSearchQuery(e.target.value); if(e.target.value) setFilters(p=>({...p,companyKeyword:""})); }} placeholder="Search name…" style={{ fontSize:12, padding:"7px 10px" }} />
               </div>
 
               {[
@@ -1674,7 +1674,7 @@ export default function App() {
                   </select>
                 )},
                 { label:"Company Keyword", jsx: (
-                  <input className="input-base" value={filters.companyKeyword} onChange={e=>setFilters(p=>({...p,companyKeyword:e.target.value}))} placeholder="e.g. funeral, clinic…" style={{ fontSize:12, padding:"7px 10px" }} />
+                  <input className="input-base" value={filters.companyKeyword} onChange={e=>{ const v=e.target.value; setFilters(p=>({...p,companyKeyword:v})); if(v) setSearchQuery(""); }} placeholder="e.g. beauty salon, funeral…" style={{ fontSize:12, padding:"7px 10px" }} />
                 )},
                 { label:"City", jsx: (
                   <input className="input-base" value={filters.city} onChange={e=>setFilters(p=>({...p,city:e.target.value}))} placeholder="e.g. Houston" style={{ fontSize:12, padding:"7px 10px" }} />
