@@ -239,7 +239,7 @@ function SectionHeading({ label, sub }) {
 }
 
 // ─── AI PANEL ─────────────────────────────────────────────────────────────────
-function AIPanel({ contact, onClose }) {
+function AIPanel({ contact, onClose, bookingLink }) {
   const [tab, setTab]       = useState("ice");
   const [loading, setLoading] = useState(false);
   const [result, setResult]   = useState("");
@@ -2130,7 +2130,7 @@ export default function App() {
       </div>
 
       {/* AI Panel */}
-      {aiContact && <AIPanel contact={aiContact} onClose={()=>setAiContact(null)} />}
+      {aiContact && <AIPanel contact={aiContact} onClose={()=>setAiContact(null)} bookingLink={bookingLink} />}
     </div>
   );
 }
