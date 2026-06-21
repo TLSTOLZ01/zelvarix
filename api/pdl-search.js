@@ -13,6 +13,7 @@ export default async function handler(req, res) {
     const scroll_token = body.scroll_token || null;
     const filters = body.filters || {};
     const query = body.query || '';
+    const naics_codes = body.naics_codes || [];
  
     const must = [
       { exists: { field: "job_title" } },
@@ -32,8 +33,11 @@ export default async function handler(req, res) {
       });
     }
  
-    // Industry filter
-    if (filters.industry && filters.industry !== 'All Industries') {
+    // NAICS code filter (takes priority over text industry filter)
+    if (naics_codes && naics_codes.length > 0) {
+      must.push({ terms: { job_company_naics_codes: naics_codes } });
+    } else if (filters.industry && filters.industry !== 'All Industries') {
+      // Fallback to text industry filter if no NAICS code selected
       must.push({ term: { job_company_industry: filters.industry.toLowerCase() } });
     }
  
