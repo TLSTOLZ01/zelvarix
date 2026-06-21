@@ -491,11 +491,13 @@ export default function App() {
     setInviteEmail(""); setShowInviteModal(false);
   }
 
-  // ── Load booking link from localStorage ─────────────────────────────────
+  // ── Load booking link (localStorage fallback only — Supabase is primary) ───
   useEffect(() => {
-    const saved = localStorage.getItem('zelvarix_booking_link');
-    if (saved) setBookingLink(saved);
-  }, []);
+    if (!currentUser) {
+      const saved = localStorage.getItem('zelvarix_booking_link');
+      if (saved) setBookingLink(saved);
+    }
+  }, [currentUser]);
 
   // ── Google Analytics ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -551,7 +553,10 @@ export default function App() {
         setCurrentUser(user);
         // Load profile
         const { data: profile } = await sb.from("profiles").select("*").eq("id", user.id).single();
-        if (profile) setOnboardData({ name: profile.name||"", company: profile.company||"", role: profile.role||"", goal: profile.goal||"" });
+        if (profile) {
+          setOnboardData({ name: profile.name||"", company: profile.company||"", role: profile.role||"", goal: profile.goal||"" });
+          if (profile.booking_link) setBookingLink(profile.booking_link);
+        }
         // Load team
         const { data: mem } = await sb.from("team_members").select("team_id, role").eq("user_id", user.id).maybeSingle();
         if (mem) {
@@ -626,7 +631,10 @@ export default function App() {
     setCurrentUser(user);
     // Load profile
     const { data: profile } = await sb.from("profiles").select("*").eq("id", user.id).single();
-    if (profile) setOnboardData({ name: profile.name||"", company: profile.company||"", role: profile.role||"", goal: profile.goal||"" });
+    if (profile) {
+      setOnboardData({ name: profile.name||"", company: profile.company||"", role: profile.role||"", goal: profile.goal||"" });
+      if (profile.booking_link) setBookingLink(profile.booking_link);
+    }
     // Load team
     const { data: mem } = await sb.from("team_members").select("team_id, role").eq("user_id", user.id).maybeSingle();
     if (mem) {
@@ -1996,7 +2004,15 @@ export default function App() {
               <div style={{ fontSize:13, color:T.inkm, marginBottom:16, lineHeight:1.7 }}>Your Calendly or Cal.com booking link. When set, it's automatically appended to every AI-drafted outreach email so prospects can book a call directly.</div>
               <div style={{ display:"flex", gap:10 }}>
                 <input className="input-base" value={bookingLink} onChange={e=>setBookingLink(e.target.value)} placeholder="https://calendly.com/your-name/30min" style={{ flex:1 }} />
-                <button onClick={()=>{ localStorage.setItem('zelvarix_booking_link', bookingLink); alert('Booking link saved!'); }} style={{ padding:"9px 20px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>Save</button>
+                <button onClick={async()=>{
+                  if (currentUser) {
+                    try {
+                      await sb.from("profiles").update({ booking_link: bookingLink }).eq("id", currentUser.id);
+                    } catch(e) { console.warn("Booking link save error:", e); }
+                  }
+                  localStorage.setItem('zelvarix_booking_link', bookingLink);
+                  alert('Booking link saved!');
+                }} style={{ padding:"9px 20px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>Save</button>
               </div>
               {bookingLink && (
                 <div style={{ marginTop:10, fontSize:12, color:T.green }}>✓ Booking link active — will appear in AI-drafted emails</div>
@@ -2055,7 +2071,7 @@ export default function App() {
                         setBulkEmailLoading(true);
                         try {
                           const res = await fetch('/api/claude', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
-                            model:"claude-sonnet-4-6", max_tokens:600,
+                            model:"claude-sonnet-4-6", max_tokens:600,,
                             messages:[{ role:"user", content:`Write a short, personalized cold outreach email to ${c.name}, ${c.title} at ${c.company}. Industry: ${c.industry}. Keep it under 100 words, conversational, not salesy. End with a call to action to book a 15-minute call.${bookingLink ? ` Include this booking link: ${bookingLink}` : ""} Sign off as ${displayName} from Zelvarix.` }]
                           })});
                           const data = await res.json();
@@ -2088,7 +2104,7 @@ export default function App() {
                   if (bulkEmailResults[c.id]) continue;
                   try {
                     const res = await fetch('/api/claude', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
-                      model:"claude-sonnet-4-6", max_tokens:600,
+                      model:"claude-sonnet-4-6", max_tokens:600,,
                       messages:[{ role:"user", content:`Write a short, personalized cold outreach email to ${c.name}, ${c.title} at ${c.company}. Industry: ${c.industry}. Keep it under 100 words, conversational, not salesy. End with a call to action to book a 15-minute call.${bookingLink ? ` Include this booking link: ${bookingLink}` : ""} Sign off as ${displayName} from Zelvarix.` }]
                     })});
                     const data = await res.json();
