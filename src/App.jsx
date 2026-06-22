@@ -70,230 +70,46 @@ const INDUSTRY_GROUPS = [
   { group: "Wholesale", options: ["Business Supplies and Equipment","Import and Export","Wholesale"] },
 ];
 
-// ─── NAICS INDUSTRY DATA ─────────────────────────────────────────────────────
-const NAICS_CODES = [
-  // Agriculture
-  { code:"111", name:"Crop Production" },
-  { code:"112", name:"Animal Production and Aquaculture" },
-  { code:"1141", name:"Fishing" },
-  { code:"115", name:"Support Activities for Agriculture and Forestry" },
-  // Mining
-  { code:"211", name:"Oil and Gas Extraction" },
-  { code:"212", name:"Mining (except Oil and Gas)" },
-  { code:"213", name:"Support Activities for Mining" },
-  // Utilities
-  { code:"2211", name:"Electric Power Generation, Transmission and Distribution" },
-  { code:"2212", name:"Natural Gas Distribution" },
-  { code:"2213", name:"Water, Sewage and Other Systems" },
-  // Construction
-  { code:"236", name:"Construction of Buildings" },
-  { code:"237", name:"Heavy and Civil Engineering Construction" },
-  { code:"238", name:"Specialty Trade Contractors" },
-  // Manufacturing
-  { code:"311", name:"Food Manufacturing" },
-  { code:"312", name:"Beverage and Tobacco Product Manufacturing" },
-  { code:"313", name:"Textile Mills" },
-  { code:"315", name:"Apparel Manufacturing" },
-  { code:"321", name:"Wood Product Manufacturing" },
-  { code:"322", name:"Paper Manufacturing" },
-  { code:"323", name:"Printing and Related Support Activities" },
-  { code:"324", name:"Petroleum and Coal Products Manufacturing" },
-  { code:"325", name:"Chemical Manufacturing" },
-  { code:"3251", name:"Basic Chemical Manufacturing" },
-  { code:"3254", name:"Pharmaceutical and Medicine Manufacturing" },
-  { code:"326", name:"Plastics and Rubber Products Manufacturing" },
-  { code:"327", name:"Nonmetallic Mineral Product Manufacturing" },
-  { code:"331", name:"Primary Metal Manufacturing" },
-  { code:"332", name:"Fabricated Metal Product Manufacturing" },
-  { code:"333", name:"Machinery Manufacturing" },
-  { code:"334", name:"Computer and Electronic Product Manufacturing" },
-  { code:"3341", name:"Computer and Peripheral Equipment Manufacturing" },
-  { code:"3344", name:"Semiconductor and Other Electronic Component Manufacturing" },
-  { code:"335", name:"Electrical Equipment and Appliance Manufacturing" },
-  { code:"336", name:"Transportation Equipment Manufacturing" },
-  { code:"3361", name:"Motor Vehicle Manufacturing" },
-  { code:"3364", name:"Aerospace Product and Parts Manufacturing" },
-  { code:"337", name:"Furniture and Related Product Manufacturing" },
-  { code:"339", name:"Miscellaneous Manufacturing" },
-  // Wholesale Trade
-  { code:"423", name:"Merchant Wholesalers, Durable Goods" },
-  { code:"424", name:"Merchant Wholesalers, Nondurable Goods" },
-  { code:"425", name:"Wholesale Electronic Markets and Agents and Brokers" },
-  // Retail Trade
-  { code:"441", name:"Motor Vehicle and Parts Dealers" },
-  { code:"444", name:"Building Material and Garden Equipment Dealers" },
-  { code:"445", name:"Food and Beverage Retailers" },
-  { code:"446", name:"Health and Personal Care Stores" },
-  { code:"448", name:"Clothing and Clothing Accessories Stores" },
-  { code:"451", name:"Sporting Goods, Hobby, Musical Instrument, and Book Stores" },
-  { code:"452", name:"General Merchandise Retailers" },
-  { code:"454", name:"Nonstore Retailers" },
-  { code:"4541", name:"Electronic Shopping and Mail-Order Houses" },
-  // Transportation
-  { code:"481", name:"Air Transportation" },
-  { code:"482", name:"Rail Transportation" },
-  { code:"483", name:"Water Transportation" },
-  { code:"484", name:"Truck Transportation" },
-  { code:"485", name:"Transit and Ground Passenger Transportation" },
-  { code:"486", name:"Pipeline Transportation" },
-  { code:"488", name:"Support Activities for Transportation" },
-  { code:"492", name:"Couriers and Messengers" },
-  { code:"493", name:"Warehousing and Storage" },
-  // Information
-  { code:"511", name:"Publishing Industries" },
-  { code:"5112", name:"Software Publishers" },
-  { code:"512", name:"Motion Picture and Sound Recording Industries" },
-  { code:"515", name:"Broadcasting (except Internet)" },
-  { code:"516", name:"Internet Publishing and Broadcasting" },
-  { code:"517", name:"Telecommunications" },
-  { code:"5171", name:"Wired Telecommunications Carriers" },
-  { code:"5172", name:"Wireless Telecommunications Carriers" },
-  { code:"518", name:"Computing Infrastructure Providers, Data Processing" },
-  { code:"5182", name:"Data Processing, Hosting, and Related Services" },
-  { code:"519", name:"Web Search Portals, Libraries, Archives" },
-  // Finance and Insurance
-  { code:"521", name:"Monetary Authorities — Central Bank" },
-  { code:"522", name:"Credit Intermediation and Related Activities" },
-  { code:"5221", name:"Depository Credit Intermediation (Banking)" },
-  { code:"5222", name:"Nondepository Credit Intermediation" },
-  { code:"5223", name:"Activities Related to Credit Intermediation" },
-  { code:"523", name:"Securities, Commodity Contracts, Financial Investments" },
-  { code:"5231", name:"Securities and Commodity Exchanges" },
-  { code:"5239", name:"Investment Banking and Securities Dealing" },
-  { code:"524", name:"Insurance Carriers and Related Activities" },
-  { code:"5241", name:"Insurance Carriers" },
-  { code:"5242", name:"Agencies, Brokerages, and Other Insurance" },
-  { code:"525", name:"Funds, Trusts, and Other Financial Vehicles" },
-  // Real Estate
-  { code:"531", name:"Real Estate" },
-  { code:"5311", name:"Lessors of Real Estate" },
-  { code:"5312", name:"Offices of Real Estate Agents and Brokers" },
-  { code:"5313", name:"Activities Related to Real Estate" },
-  { code:"532", name:"Rental and Leasing Services" },
-  // Professional Services
-  { code:"541", name:"Professional, Scientific, and Technical Services" },
-  { code:"5411", name:"Legal Services" },
-  { code:"5412", name:"Accounting, Tax Preparation, Bookkeeping" },
-  { code:"5413", name:"Architectural, Engineering, and Related Services" },
-  { code:"5414", name:"Specialized Design Services" },
-  { code:"5415", name:"Computer Systems Design and Related Services" },
-  { code:"5416", name:"Management, Scientific, and Technical Consulting" },
-  { code:"5417", name:"Scientific Research and Development Services" },
-  { code:"5418", name:"Advertising, Public Relations, and Related Services" },
-  { code:"5419", name:"Other Professional, Scientific, and Technical Services" },
-  // Management
-  { code:"551", name:"Management of Companies and Enterprises" },
-  // Administrative Services
-  { code:"561", name:"Administrative and Support Services" },
-  { code:"5611", name:"Office Administrative Services" },
-  { code:"5612", name:"Facilities Support Services" },
-  { code:"5613", name:"Employment Services" },
-  { code:"5614", name:"Business Support Services" },
-  { code:"5615", name:"Travel Arrangement and Reservation Services" },
-  { code:"5616", name:"Investigation and Security Services" },
-  { code:"5617", name:"Services to Buildings and Dwellings" },
-  { code:"562", name:"Waste Management and Remediation Services" },
-  // Education
-  { code:"611", name:"Educational Services" },
-  { code:"6111", name:"Elementary and Secondary Schools" },
-  { code:"6112", name:"Junior Colleges" },
-  { code:"6113", name:"Colleges, Universities, and Professional Schools" },
-  { code:"6114", name:"Business Schools and Computer and Management Training" },
-  { code:"6115", name:"Technical and Trade Schools" },
-  { code:"6116", name:"Other Schools and Instruction" },
-  { code:"6117", name:"Educational Support Services" },
-  // Health Care
-  { code:"621", name:"Ambulatory Health Care Services" },
-  { code:"6211", name:"Offices of Physicians" },
-  { code:"6212", name:"Offices of Dentists" },
-  { code:"6213", name:"Offices of Other Health Practitioners" },
-  { code:"6214", name:"Outpatient Care Centers" },
-  { code:"6215", name:"Medical and Diagnostic Laboratories" },
-  { code:"6216", name:"Home Health Care Services" },
-  { code:"6219", name:"Other Ambulatory Health Care Services" },
-  { code:"622", name:"Hospitals" },
-  { code:"6221", name:"General Medical and Surgical Hospitals" },
-  { code:"6222", name:"Psychiatric and Substance Abuse Hospitals" },
-  { code:"623", name:"Nursing and Residential Care Facilities" },
-  { code:"624", name:"Social Assistance" },
-  { code:"6241", name:"Individual and Family Services" },
-  { code:"6244", name:"Child Day Care Services" },
-  // Arts and Entertainment
-  { code:"711", name:"Performing Arts, Spectator Sports, and Related" },
-  { code:"712", name:"Museums, Historical Sites, and Similar Institutions" },
-  { code:"713", name:"Amusement, Gambling, and Recreation Industries" },
-  // Accommodation and Food
-  { code:"721", name:"Accommodation" },
-  { code:"7211", name:"Traveler Accommodation (Hotels)" },
-  { code:"722", name:"Food Services and Drinking Places" },
-  { code:"7221", name:"Full-Service Restaurants" },
-  { code:"7222", name:"Limited-Service Eating Places" },
-  { code:"7224", name:"Drinking Places (Alcoholic Beverages)" },
-  // Other Services
-  { code:"811", name:"Repair and Maintenance" },
-  { code:"8111", name:"Automotive Repair and Maintenance" },
-  { code:"8112", name:"Electronic and Precision Equipment Repair" },
-  { code:"8113", name:"Commercial and Industrial Machinery Repair" },
-  { code:"812", name:"Personal and Laundry Services" },
-  { code:"8121", name:"Personal Care Services (Salons, Spas)" },
-  { code:"8122", name:"Death Care Services" },
-  { code:"81221", name:"Funeral Homes and Funeral Services" },
-  { code:"81222", name:"Cemeteries and Crematories" },
-  { code:"8123", name:"Drycleaning and Laundry Services" },
-  { code:"8129", name:"Other Personal Services" },
-  { code:"813", name:"Religious, Grantmaking, Civic, and Professional Organizations" },
-  { code:"8131", name:"Religious Organizations" },
-  { code:"8132", name:"Grantmaking and Giving Services" },
-  { code:"8133", name:"Social Advocacy Organizations" },
-  { code:"8134", name:"Civic and Social Organizations" },
-  { code:"8139", name:"Business, Professional, Labor Organizations" },
-  // Public Administration
-  { code:"921", name:"Executive, Legislative, and General Government" },
-  { code:"922", name:"Justice, Public Order, and Safety Activities" },
-  { code:"923", name:"Administration of Human Resource Programs" },
-  { code:"924", name:"Administration of Environmental Quality Programs" },
-  { code:"925", name:"Administration of Housing Programs, Urban Planning" },
-  { code:"926", name:"Administration of Economic Programs" },
-  { code:"927", name:"Space Research and Technology" },
-  { code:"928", name:"National Security and International Affairs" },
-  // Defense & Aerospace (common B2B)
-  { code:"3364", name:"Aerospace Product and Parts Manufacturing" },
-  { code:"9281", name:"National Security" },
-  // Tech specifics
-  { code:"5415", name:"Computer Systems Design and Related Services" },
-  { code:"5112", name:"Software Publishers" },
-  { code:"7372", name:"Prepackaged Software (SaaS)" },
-  { code:"5182", name:"Cloud Computing and Data Centers" },
-  // Staffing
-  { code:"5613", name:"Employment Services / Staffing" },
-  { code:"56131", name:"Temporary Help Services" },
-  { code:"56132", name:"Professional Employer Organizations" },
-  // Veterinary
-  { code:"54194", name:"Veterinary Services" },
-  // Landscaping
-  { code:"56173", name:"Landscaping Services" },
-  // Auto dealers
-  { code:"4411", name:"Automobile Dealers" },
-  { code:"4412", name:"Other Motor Vehicle Dealers" },
-  // Pharma distribution
-  { code:"4242", name:"Drugs and Druggists Sundries Merchant Wholesalers" },
-  // Oil field services
-  { code:"2131", name:"Drilling Oil and Gas Wells" },
-  { code:"2132", name:"Support Activities for Oil and Gas Operations" },
-  // LNG / Pipelines
-  { code:"4861", name:"Pipeline Transportation of Crude Oil" },
-  { code:"4862", name:"Pipeline Transportation of Natural Gas" },
-  // Semiconductor fab
-  { code:"33441", name:"Semiconductor and Related Device Manufacturing" },
-  // Data centers
-  { code:"51821", name:"Data Processing and Hosting Services" },
-  // Biotech
-  { code:"54171", name:"Research and Development in Life Sciences" },
+// ─── PDL INDUSTRY LIST ───────────────────────────────────────────────────────
+const PDL_INDUSTRIES = [
+  "accounting","airlines/aviation","alternative medicine","animation",
+  "apparel & fashion","architecture & planning","arts and crafts","automotive",
+  "aviation & aerospace","banking","biotechnology","broadcast media",
+  "building materials","business supplies and equipment","capital markets",
+  "chemicals","civic & social organization","civil engineering",
+  "computer & network security","computer games","computer hardware",
+  "computer networking","computer software","construction","consumer electronics",
+  "consumer goods","consumer services","cosmetics","dairy","defense & space",
+  "design","e-learning","education management","electrical/electronic manufacturing",
+  "entertainment","environmental services","events services","facilities services",
+  "farming","financial services","food & beverages","food production","furniture",
+  "gambling & casinos","government administration","graphic design",
+  "health, wellness and fitness","higher education","hospital & health care",
+  "hospitality","human resources","import and export","individual & family services",
+  "industrial automation","information technology and services","insurance",
+  "internet","investment banking","investment management","law enforcement",
+  "law practice","legal services","leisure, travel & tourism","libraries",
+  "logistics & supply chain","luxury goods & jewelry","machinery",
+  "management consulting","maritime","marketing and advertising",
+  "mechanical or industrial engineering","media production","medical devices",
+  "medical practice","mental health care","military","mining & metals",
+  "motion pictures and film","museums and institutions","music","nanotechnology",
+  "newspapers","nonprofit organization management","oil & energy","online media",
+  "outsourcing/offshoring","package/freight delivery","paper & forest products",
+  "performing arts","pharmaceuticals","philanthropy","plastics",
+  "primary/secondary education","printing","professional training & coaching",
+  "public policy","public relations and communications","public safety","publishing",
+  "real estate","recreational facilities and services","religious institutions",
+  "renewables & environment","research","restaurants","retail",
+  "security and investigations","semiconductors","shipbuilding","sporting goods",
+  "sports","staffing and recruiting","supermarkets","telecommunications","textiles",
+  "tobacco","transportation/trucking/railroad","utilities",
+  "venture capital & private equity","veterinary","warehousing","wholesale",
+  "wine and spirits","wireless","writing and editing",
 ];
 
-// ─── NAICS SEARCH COMPONENT ──────────────────────────────────────────────────
-function NaicsIndustrySearch({ value, onChange }) {
-  // Fully controlled — driven by value prop, no internal selected state
+// ─── PDL INDUSTRY SEARCH COMPONENT ──────────────────────────────────────────
+function IndustrySearch({ value, onChange }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -304,9 +120,8 @@ function NaicsIndustrySearch({ value, onChange }) {
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
-  const matches = query.length < 2 ? [] : NAICS_CODES.filter(n =>
-    n.name.toLowerCase().includes(query.toLowerCase()) ||
-    n.code.startsWith(query)
+  const matches = query.length < 2 ? [] : PDL_INDUSTRIES.filter(n =>
+    n.toLowerCase().includes(query.toLowerCase())
   ).slice(0, 8);
 
   function select(item) {
@@ -324,8 +139,7 @@ function NaicsIndustrySearch({ value, onChange }) {
     <div ref={ref} style={{ position:"relative" }}>
       {value ? (
         <div style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 8px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:4 }}>
-          <span style={{ fontSize:10, fontFamily:"'DM Mono',monospace", color:T.green, fontWeight:600 }}>{value.code}</span>
-          <span style={{ fontSize:11, color:T.inkl, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{value.name}</span>
+          <span style={{ fontSize:11, color:T.inkl, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", textTransform:"capitalize" }}>{value}</span>
           <button onClick={clear} style={{ background:"none", border:"none", color:T.inkm, cursor:"pointer", fontSize:14, lineHeight:1, padding:0, flexShrink:0 }}>×</button>
         </div>
       ) : (
@@ -341,9 +155,8 @@ function NaicsIndustrySearch({ value, onChange }) {
       {open && matches.length > 0 && (
         <div style={{ position:"absolute", top:"calc(100% + 2px)", left:0, right:0, background:"#fff", border:`1px solid ${T.border}`, borderRadius:4, boxShadow:`0 4px 16px ${T.shadowd}`, zIndex:200, maxHeight:220, overflowY:"auto" }}>
           {matches.map(item => (
-            <button key={item.code} onClick={()=>select(item)} style={{ width:"100%", display:"flex", alignItems:"center", gap:8, padding:"7px 10px", background:"none", border:"none", borderBottom:`1px solid ${T.border}`, cursor:"pointer", textAlign:"left", fontFamily:"'DM Sans',sans-serif" }}>
-              <span style={{ fontSize:10, fontFamily:"'DM Mono',monospace", color:T.green, fontWeight:600, flexShrink:0, minWidth:36 }}>{item.code}</span>
-              <span style={{ fontSize:12, color:T.inkl, lineHeight:1.3 }}>{item.name}</span>
+            <button key={item} onClick={()=>select(item)} style={{ width:"100%", display:"flex", alignItems:"center", padding:"8px 10px", background:"none", border:"none", borderBottom:`1px solid ${T.border}`, cursor:"pointer", textAlign:"left", fontFamily:"'DM Sans',sans-serif", fontSize:12, color:T.inkl, textTransform:"capitalize" }}>
+              {item}
             </button>
           ))}
         </div>
@@ -606,7 +419,7 @@ export default function App() {
   // Main app state
   const [view, setView]               = useState("discover");
   const [searchQuery, setSearchQuery] = useState("");
-  const [filters, setFilters]         = useState({ industry:"All Industries", naicsCode:null, companyKeyword:"", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" });
+  const [filters, setFilters]         = useState({ pdlIndustry:"", companyName:"", companyKeyword:"", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" });
   const [selectedContact, setSelectedContact] = useState(null);
   const [aiContact, setAiContact]     = useState(null);
   const [savedIds, setSavedIds]         = useState(new Set());
@@ -672,7 +485,7 @@ export default function App() {
     setPdlLoading(true);
     setPdlError(null);
     try {
-      const result = await searchPeople({ filters, query: searchQuery, page, pageSize: 5, naicsCodes: filters.naicsCode ? [filters.naicsCode.code] : [], companyKeyword: filters.companyKeyword || "" });
+      const result = await searchPeople({ filters, query: searchQuery, page, pageSize: 5, companyKeyword: filters.companyKeyword || "", companyName: filters.companyName || "" });
       setPdlContacts(prev => append ? [...prev, ...result.contacts] : result.contacts);
       setPdlTotal(result.total);
       setPdlHasMore(result.hasMore);
@@ -698,14 +511,14 @@ export default function App() {
   const mockFiltered = MOCK_CONTACTS.slice(0, 10).filter(c => {
     const q = searchQuery.toLowerCase();
     const mQ = !q || c.name.toLowerCase().includes(q) || c.company.toLowerCase().includes(q) || c.title.toLowerCase().includes(q) || c.industry.toLowerCase().includes(q) || c.location.toLowerCase().includes(q);
-    const ck = filters.companyKeyword ? filters.companyKeyword.toLowerCase() : "";
-    const mCK = !ck || c.company.toLowerCase().includes(ck);
-    const mI = filters.naicsCode ? c.industry.toLowerCase().includes(filters.naicsCode.name.split(" ")[0].toLowerCase()) : (filters.industry === "All Industries" || c.industry === filters.industry);
+    const mCK = !filters.companyKeyword || c.company.toLowerCase().includes(filters.companyKeyword.toLowerCase());
+    const mI = !filters.pdlIndustry || c.industry.toLowerCase().includes(filters.pdlIndustry.toLowerCase());
+    const mCN = !filters.companyName || c.company.toLowerCase().includes(filters.companyName.toLowerCase());
     const mS = filters.size     === "Any Size"       || c.employees === filters.size;
     const mSn= filters.seniority=== "Any Seniority"  || c.seniority === filters.seniority;
     const mD = filters.department==="Any Department" || c.department === filters.department;
     const mR = filters.revenue==="Any Revenue"   || c.revenue === filters.revenue;
-    return mQ && mCK && mI && mS && mSn && mD && mR;
+    return mQ && mI && mCN && mCK && mS && mSn && mD && mR;
   });
 
   // Use live PDL data if toggled on, otherwise use mock
@@ -1638,15 +1451,18 @@ export default function App() {
 
               {/* Search */}
               <div style={{ marginBottom:16 }}>
-                <input className="input-base" value={searchQuery} onChange={e=>{ setSearchQuery(e.target.value); if(e.target.value) setFilters(p=>({...p,companyKeyword:""})); }} placeholder="Search name…" style={{ fontSize:12, padding:"7px 10px" }} />
+                <input className="input-base" value={searchQuery} onChange={e=>{ setSearchQuery(e.target.value); if(e.target.value) setFilters(p=>({...p,companyKeyword:"",companyName:""})); }} placeholder="Search name…" style={{ fontSize:12, padding:"7px 10px" }} />
               </div>
 
               {[
                 { label:"Industry", jsx: (
-                  <NaicsIndustrySearch
-                    value={filters.naicsCode}
-                    onChange={item=>setFilters(p=>({...p, naicsCode:item, industry:"All Industries"}))}
+                  <IndustrySearch
+                    value={filters.pdlIndustry}
+                    onChange={item=>setFilters(p=>({...p, pdlIndustry:item||""}))}
                   />
+                )},
+                { label:"Company Name", jsx: (
+                  <input className="input-base" value={filters.companyName} onChange={e=>{ const v=e.target.value; setFilters(p=>({...p,companyName:v})); if(v) setFilters(p=>({...p,companyKeyword:""})); if(v) setSearchQuery(""); }} placeholder="e.g. Chevron, HCA…" style={{ fontSize:12, padding:"7px 10px" }} />
                 )},
                 { label:"Company Size", jsx: (
                   <select style={selectStyle} value={filters.size} onChange={e=>setFilters(p=>({...p,size:e.target.value}))}>
@@ -1674,7 +1490,7 @@ export default function App() {
                   </select>
                 )},
                 { label:"Company Keyword", jsx: (
-                  <input className="input-base" value={filters.companyKeyword} onChange={e=>{ const v=e.target.value; setFilters(p=>({...p,companyKeyword:v})); if(v) setSearchQuery(""); }} placeholder="e.g. beauty salon, funeral…" style={{ fontSize:12, padding:"7px 10px" }} />
+                  <input className="input-base" value={filters.companyKeyword} onChange={e=>{ const v=e.target.value; setFilters(p=>({...p,companyKeyword:v,companyName:""})); if(v) setSearchQuery(""); }} placeholder="e.g. beauty salon, funeral…" style={{ fontSize:12, padding:"7px 10px" }} />
                 )},
                 { label:"City", jsx: (
                   <input className="input-base" value={filters.city} onChange={e=>setFilters(p=>({...p,city:e.target.value}))} placeholder="e.g. Houston" style={{ fontSize:12, padding:"7px 10px" }} />
@@ -1686,7 +1502,7 @@ export default function App() {
                 </div>
               ))}
 
-              <button onClick={()=>{ setSearchQuery(""); setFilters({ industry:"All Industries", naicsCode:null, companyKeyword:"", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" }); }} style={{ fontSize:11, color:T.inkmut, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textDecoration:"underline", marginTop:4 }}>Reset</button>
+              <button onClick={()=>{ setSearchQuery(""); setFilters({ pdlIndustry:"", companyName:"", companyKeyword:"", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" }); }} style={{ fontSize:11, color:T.inkmut, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textDecoration:"underline", marginTop:4 }}>Reset</button>
             </div>
 
             {/* Results table */}
@@ -1747,7 +1563,7 @@ export default function App() {
                   <div style={{ textAlign:"center", padding:"60px 20px" }}>
                     <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.inkm, marginBottom:8 }}>No results found</div>
                     <div style={{ fontSize:13, color:T.inkmut, marginBottom:16 }}>Try adjusting your filters or search term.</div>
-                    <button onClick={()=>{ setSearchQuery(""); setFilters({ industry:"All Industries", naicsCode:null, companyKeyword:"", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" }); }} style={{ fontSize:12, padding:"7px 16px", background:T.ink, border:"none", borderRadius:3, color:T.cream, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Clear filters</button>
+                    <button onClick={()=>{ setSearchQuery(""); setFilters({ pdlIndustry:"", companyName:"", companyKeyword:"", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" }); }} style={{ fontSize:12, padding:"7px 16px", background:T.ink, border:"none", borderRadius:3, color:T.cream, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Clear filters</button>
                   </div>
                 ) : (
                   <>{sorted.map(c=>(
