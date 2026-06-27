@@ -622,14 +622,20 @@ CONTACT & ESCALATION:
 
 Always be friendly, concise, and helpful. If you don't know something, say so honestly and direct the user to support@zelvarix.ai.`;
 
-  async function sendSupportMessage() {
-    if (!supportInput.trim() || supportLoading) return;
-    const userMsg = { role:"user", text:supportInput.trim(), id:Date.now() };
-    setSupportMessages(prev => [...prev, userMsg]);
-    setSupportInput("");
+  async function sendSupportMessageText(text) {
+    if (!text.trim() || supportLoading) return;
+    const userMsg = { role:"user", text:text.trim(), id:Date.now() };
+    setSupportMessages(prev => {
+      const newMessages = [...prev, userMsg];
+      runSupportAPI(newMessages);
+      return newMessages;
+    });
     setSupportLoading(true);
+  }
+
+  async function runSupportAPI(messages) {
     try {
-      const history = [...supportMessages, userMsg]
+      const history = messages
         .filter(m => m.role === "user" || m.role === "assistant")
         .map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.text }));
       const res = await fetch("/api/claude", {
@@ -649,6 +655,18 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
       setSupportMessages(prev => [...prev, { role:"assistant", text:"Connection error. Please email support@zelvarix.ai for help.", id:Date.now() }]);
     }
     setSupportLoading(false);
+  }
+
+  async function sendSupportMessage() {
+    if (!supportInput.trim() || supportLoading) return;
+    const userMsg = { role:"user", text:supportInput.trim(), id:Date.now() };
+    setSupportMessages(prev => {
+      const newMessages = [...prev, userMsg];
+      runSupportAPI(newMessages);
+      return newMessages;
+    });
+    setSupportInput("");
+    setSupportLoading(true);
   }
 
   async function revealContact(contact) {
@@ -2515,7 +2533,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
           {supportMessages.length === 1 && (
             <div style={{ padding:"0 14px 10px", display:"flex", flexWrap:"wrap", gap:6 }}>
               {["How do reveals work?","Why is live search not working?","How do I cancel?","What's included in each plan?"].map(q => (
-                <button key={q} onClick={()=>{ setSupportInput(q); setTimeout(()=>sendSupportMessage(),50); }} style={{ fontSize:11, padding:"4px 10px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:20, color:T.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontWeight:500 }}>{q}</button>
+                <button key={q} onClick={()=>sendSupportMessageText(q)} style={{ fontSize:11, padding:"4px 10px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:20, color:T.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontWeight:500 }}>{q}</button>
               ))}
             </div>
           )}
