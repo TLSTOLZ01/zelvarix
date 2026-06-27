@@ -455,6 +455,15 @@ export default function App() {
   const [cancelError, setCancelError]         = useState("");
   const [cancelComplete, setCancelComplete]   = useState(false);
   const [bookingLink, setBookingLink]         = useState("");
+  const [revealCache, setRevealCache]         = useState({}); // pdlId -> { email, phone }
+  const [revealedIds, setRevealedIds]         = useState(new Set()); // contacts with revealed contact info
+  const [exportedIds, setExportedIds]         = useState(new Set()); // contacts exported to CSV
+  const [revealsUsed, setRevealsUsed]         = useState(0);
+  const [revealsTotal, setRevealsTotal]       = useState(20);
+  const [searchesUsed, setSearchesUsed]       = useState(0);
+  const [searchesTotal, setSearchesTotal]     = useState(30);
+  const [resultsPerSearch, setResultsPerSearch] = useState(3);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [bulkEmailContacts, setBulkEmailContacts] = useState([]);
   const [bulkEmailResults, setBulkEmailResults]   = useState({});
   const [bulkEmailLoading, setBulkEmailLoading]   = useState(false);
@@ -485,8 +494,23 @@ export default function App() {
     setPdlLoading(true);
     setPdlError(null);
     try {
-      const result = await searchPeople({ filters, query: searchQuery, page, pageSize: 5, companyKeyword: filters.companyKeyword || "", companyName: filters.companyName || "" });
-      setPdlContacts(prev => append ? [...prev, ...result.contacts] : result.contacts);
+      const result = await searchPeople({ filters, query: searchQuery, page, pageSize: resultsPerSearch, companyKeyword: filters.companyKeyword || "", companyName: filters.companyName || "" });
+      // Strip email/phone — store in reveal cache, show in UI only after reveal
+      const stripped = result.contacts.map(c => {
+        if (c.email || c.phone) {
+          setRevealCache(prev => ({ ...prev, [c.id]: { email: c.email, phone: c.phone } }));
+        }
+        return { ...c, email: "", phone: "" };
+      });
+      // Track searches used
+      if (!append) {
+        const newSearchesUsed = searchesUsed + 1;
+        setSearchesUsed(newSearchesUsed);
+        if (sbTeam) {
+          sb.from("teams").update({ searches_used: newSearchesUsed }).eq("id", sbTeam.id).then(() => {});
+        }
+      }
+      setPdlContacts(prev => append ? [...prev, ...stripped] : stripped);
       setPdlTotal(result.total);
       setPdlHasMore(result.hasMore);
       setPdlPage(page);
@@ -525,6 +549,27 @@ export default function App() {
   const filteredContacts = useLiveData ? pdlContacts : mockFiltered;
   const sorted = [...filteredContacts].sort((a,b) => b.score - a.score);
   const displayTotal = useLiveData ? pdlTotal : mockFiltered.length;
+
+  async function revealContact(contact) {
+    // Check if already revealed
+    if (revealedIds.has(contact.id)) return;
+    // Check reveal limit
+    if (revealsUsed >= revealsTotal) {
+      setShowUpgradePrompt(true);
+      return;
+    }
+    // Get from cache
+    const cached = revealCache[contact.id];
+    if (!cached) return;
+    // Decrement reveals
+    const newRevealsUsed = revealsUsed + 1;
+    setRevealsUsed(newRevealsUsed);
+    setRevealedIds(prev => new Set([...prev, contact.id]));
+    // Update Supabase
+    if (sbTeam) {
+      await sb.from("teams").update({ reveals_used: newRevealsUsed }).eq("id", sbTeam.id);
+    }
+  }
 
   async function toggleSave(contactOrId) {
     const id = typeof contactOrId === 'object' ? contactOrId.id : contactOrId;
@@ -582,6 +627,8 @@ export default function App() {
   function downloadCSV(contacts) {
     const hdr = ["Name","Title","Company","Industry","Department","Seniority","Location","Email","Phone","Employees","Revenue","AI Score","Verified","Tags"];
     const rows = contacts.map(c => [c.name,c.title,c.company,c.industry,c.department,c.seniority,c.location,c.email,c.phone,c.employees,c.revenue,c.score,c.verified?"Yes":"No",c.tags.join("; ")].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(","));
+    // Track exported IDs for deduplication badges
+    setExportedIds(prev => new Set([...prev, ...contacts.map(c => c.id)]));
     const blob = new Blob([[hdr.join(","),...rows].join("\n")], { type:"text/csv" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
     a.download = `zelvarix-${new Date().toISOString().slice(0,10)}.csv`; a.click();
@@ -659,7 +706,15 @@ export default function App() {
         const { data: mem } = await sb.from("team_members").select("team_id, role").eq("user_id", user.id).maybeSingle();
         if (mem) {
           const { data: team } = await sb.from("teams").select("*").eq("id", mem.team_id).single();
-          if (team) { setSbTeam(team); setSelectedPlan(team.plan); }
+          if (team) {
+            setSbTeam(team);
+            setSelectedPlan(team.plan);
+            setRevealsUsed(team.reveals_used || 0);
+            setRevealsTotal(team.reveals_total || 20);
+            setSearchesUsed(team.searches_used || 0);
+            setSearchesTotal(team.searches_total || 30);
+            setResultsPerSearch(team.results_per_search || 3);
+          }
           const { data: members } = await sb.from("team_members").select("id, user_id, role, status, joined_at").eq("team_id", mem.team_id);
           if (members && members.length > 0) {
             const userIds = members.map(m => m.user_id).filter(Boolean);
@@ -1395,9 +1450,15 @@ export default function App() {
 
         {/* Right — credits + user */}
         <div style={{ display:"flex", alignItems:"center", gap:16, flexShrink:0 }}>
-          <div style={{ fontSize:12, color:T.inkm }}>
-            <span style={{ fontFamily:"'DM Mono',monospace", color:T.green, fontWeight:500 }}>{activeBilling.credits.total - activeBilling.credits.used}</span>
-            <span style={{ color:T.inkmut }}> credits</span>
+          <div style={{ fontSize:12, color:T.inkm, display:"flex", gap:12 }}>
+            <span>
+              <span style={{ fontFamily:"'DM Mono',monospace", color:T.green, fontWeight:500 }}>{revealsTotal - revealsUsed}</span>
+              <span style={{ color:T.inkmut }}> reveals</span>
+            </span>
+            <span>
+              <span style={{ fontFamily:"'DM Mono',monospace", color:T.amber, fontWeight:500 }}>{searchesTotal - searchesUsed}</span>
+              <span style={{ color:T.inkmut }}> searches</span>
+            </span>
           </div>
           {/* User menu */}
           <div style={{ position:"relative" }}>
@@ -1586,7 +1647,12 @@ export default function App() {
                       <div style={{ fontSize:11, color:T.inkm, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.location.split(",")[1]?.trim()||c.location}</div>
                       <div style={{ fontSize:11, color:T.inkm }}>{c.seniority}</div>
                       <div><ScorePill score={c.score} /></div>
-                      <div style={{ display:"flex", gap:4, justifyContent:"flex-end" }}>
+                      <div style={{ display:"flex", gap:4, justifyContent:"flex-end", alignItems:"center" }}>
+                        {exportedIds.has(c.id) && <span style={{ fontSize:9, fontWeight:700, color:T.inkm, background:T.paper, border:`1px solid ${T.border}`, borderRadius:2, padding:"1px 4px" }}>CSV</span>}
+                        {savedIds.has(c.id) && <span style={{ fontSize:9, fontWeight:700, color:T.amber, background:T.amberl, border:`1px solid ${T.amberb}`, borderRadius:2, padding:"1px 4px" }}>★</span>}
+                        {useLiveData && !revealedIds.has(c.id) && revealCache[c.id] && (
+                          <button onClick={e=>{e.stopPropagation();revealContact(c);}} style={{ fontSize:9, fontWeight:700, padding:"3px 6px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, cursor:"pointer", color:T.green, fontFamily:"'DM Sans',sans-serif", whiteSpace:"nowrap" }}>Reveal</button>
+                        )}
                         <button onClick={e=>{e.stopPropagation();setAiContact(c);}} style={{ width:26, height:26, background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, cursor:"pointer", fontSize:12, color:T.green, display:"flex", alignItems:"center", justifyContent:"center" }} title="AI Insights">✦</button>
                         <button onClick={e=>{e.stopPropagation();toggleSave(c);}} style={{ width:26, height:26, background:savedIds.has(c.id)?T.amberl:"#fff", border:`1px solid ${savedIds.has(c.id)?T.amberb:T.border}`, borderRadius:3, cursor:"pointer", fontSize:12, color:savedIds.has(c.id)?T.amber:T.inkmut, display:"flex", alignItems:"center", justifyContent:"center" }}>{savedIds.has(c.id)?"★":"☆"}</button>
                       </div>
@@ -1615,7 +1681,10 @@ export default function App() {
                   <ScorePill score={selectedContact.score} />
                   {selectedContact.verified && <span style={{ fontSize:10, fontWeight:600, color:T.green, background:T.greenl, border:`1px solid ${T.greenb}`, padding:"2px 6px", borderRadius:2, letterSpacing:.5 }}>VERIFIED</span>}
                 </div>
-                {[["Industry",selectedContact.industry],["Location",selectedContact.location],["Employees",selectedContact.employees],["Revenue",selectedContact.revenue],["Seniority",selectedContact.seniority],["Department",selectedContact.department],["Email",selectedContact.email],["Phone",selectedContact.phone]].map(([l,v])=>(
+                {[["Industry",selectedContact.industry],["Location",selectedContact.location],["Employees",selectedContact.employees],["Revenue",selectedContact.revenue],["Seniority",selectedContact.seniority],["Department",selectedContact.department],
+                  ["Email", revealedIds.has(selectedContact.id) ? (revealCache[selectedContact.id]?.email || "—") : (selectedContact.email || (useLiveData ? "🔒 Click Reveal" : "—"))],
+                  ["Phone", revealedIds.has(selectedContact.id) ? (revealCache[selectedContact.id]?.phone || "—") : (selectedContact.phone || (useLiveData ? "🔒 Click Reveal" : "—"))]
+                ].map(([l,v])=>(
                   <div key={l} style={{ marginBottom:10 }}>
                     <div style={{ fontSize:10, fontWeight:600, color:T.inkmut, textTransform:"uppercase", letterSpacing:.8, marginBottom:2 }}>{l}</div>
                     <div style={{ fontSize:12, color:T.inkl, wordBreak:"break-all" }}>{v||"—"}</div>
@@ -2135,6 +2204,27 @@ export default function App() {
         )}
 
       </div>
+
+      {/* ── UPGRADE PROMPT MODAL ──────────────────────────────────────────── */}
+      {showUpgradePrompt && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(26,24,20,.5)", zIndex:400, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }} onClick={()=>setShowUpgradePrompt(false)}>
+          <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:32, width:"100%", maxWidth:400, boxShadow:`0 8px 40px ${T.shadowd}`, textAlign:"center" }} onClick={e=>e.stopPropagation()}>
+            <div style={{ fontSize:36, marginBottom:12 }}>🔒</div>
+            <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:24, color:T.ink, marginBottom:8 }}>Out of reveals</div>
+            <div style={{ fontSize:13, color:T.inkm, marginBottom:20, lineHeight:1.7 }}>
+              You've used all {revealsTotal} reveals for this month. Upgrade your plan to reveal more contacts.
+            </div>
+            <div style={{ background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:6, padding:"12px 16px", marginBottom:20 }}>
+              <div style={{ fontSize:12, color:T.green, fontWeight:600, marginBottom:4 }}>Reveals reset on your next billing date</div>
+              <div style={{ fontSize:12, color:T.inkm }}>Or upgrade now for immediate access</div>
+            </div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={()=>setShowUpgradePrompt(false)} style={{ flex:1, padding:"10px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:5, color:T.inkl, fontWeight:500, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Close</button>
+              <button onClick={()=>{ setShowUpgradePrompt(false); setAppView("pricing"); }} style={{ flex:1, padding:"10px", background:T.green, border:"none", borderRadius:5, color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Upgrade plan →</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── BULK EMAIL MODAL ──────────────────────────────────────────────── */}
       {showBulkEmail && (
