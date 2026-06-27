@@ -12,7 +12,6 @@ const ANTHROPIC_MODEL = "claude-sonnet-4-6";
 
 // ── ANALYTICS & MONITORING ───────────────────────────────────────────────────
 const GA_MEASUREMENT_ID = 'G-L19SG7QRWX';
-const CRISP_WEBSITE_ID  = '2562ef43-438d-4a73-ad32-16d5f901c70a';
 
 // ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
 const T = {
@@ -464,6 +463,13 @@ export default function App() {
   const [searchesTotal, setSearchesTotal]     = useState(30);
   const [resultsPerSearch, setResultsPerSearch] = useState(3);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [showSupportBot, setShowSupportBot]     = useState(false);
+  const [supportMessages, setSupportMessages]   = useState([
+    { role:"assistant", text:"Hi! I'm Zelvarix Support. How can I help you today?", id:1 }
+  ]);
+  const [supportInput, setSupportInput]         = useState("");
+  const [supportLoading, setSupportLoading]     = useState(false);
+  const supportEndRef                           = useRef(null);
   const [bulkEmailContacts, setBulkEmailContacts] = useState([]);
   const [bulkEmailResults, setBulkEmailResults]   = useState({});
   const [bulkEmailLoading, setBulkEmailLoading]   = useState(false);
@@ -549,6 +555,101 @@ export default function App() {
   const filteredContacts = useLiveData ? pdlContacts : mockFiltered;
   const sorted = [...filteredContacts].sort((a,b) => b.score - a.score);
   const displayTotal = useLiveData ? pdlTotal : mockFiltered.length;
+
+  const SUPPORT_SYSTEM_PROMPT = `You are a friendly and knowledgeable support agent for Zelvarix.ai, a B2B sales intelligence platform. Answer questions accurately and concisely. Here is everything you need to know:
+
+PRODUCT OVERVIEW:
+Zelvarix is a B2B prospecting platform that helps sales teams find decision makers, get verified contact information, and generate AI-powered personalized outreach emails. It is built for small to medium businesses and individual sales reps.
+
+PLANS & PRICING:
+- Starter: $59/month — 30 searches, 3 results per search, 20 reveals per month
+- Pro: $99/month — 50 searches, 5 results per search, 50 reveals per month  
+- Team: $249/month — 80 searches, 10 results per search, 100 reveals per month
+- All plans share reveals as a team pool
+- No annual contracts required — cancel anytime
+- 7-day free trial on all plans, no credit card required
+
+HOW SEARCHES WORK:
+- Users filter by industry, company name, company keyword, size, seniority, department, state, city
+- Sample Data mode shows demo contacts — no credits used
+- Live Data mode queries our real contact database of 1.3B+ profiles
+- Each search in Live Data mode counts against your monthly search allowance
+- Results show name, title, company, location, seniority, and AI score
+
+HOW REVEALS WORK:
+- Contact email and phone are hidden by default in Live Data mode
+- Click the green "Reveal" button on any contact to see their email and phone
+- Each reveal uses 1 credit from your team's monthly reveal pool
+- Revealed contacts stay visible for the session
+- When reveals run out, an upgrade prompt appears
+- Reveals reset on your monthly billing date
+
+AI FEATURES:
+- AI Intelligence panel (✦ button): generates ice breakers, lead score analysis, and draft emails
+- Bulk email generator: select multiple contacts and generate personalized emails for all of them
+- Booking link: add your Calendly/Cal.com link in Settings and it auto-appears in AI-drafted emails
+- AI features use Claude AI (Anthropic)
+
+PIPELINE & LISTS:
+- Star (☆) any contact to save them to your pipeline
+- Pipeline has 4 stages: New, Contacted, Qualified, Closed
+- Drag and drop contacts between stages
+- Lists let you organize saved contacts into named groups
+
+TEAM FEATURES:
+- Invite team members with different roles: Admin, Manager, Sales Rep, Viewer
+- Credits are shared across the whole team
+- Admins can manage billing and team members
+
+BILLING:
+- Managed in the Billing tab
+- Cancel anytime — no penalties, data preserved for 30 days after cancellation
+- Re-authentication required to cancel (security measure)
+
+COMMON ISSUES:
+- "Live search error": Usually means the PDL API credits are exhausted or the API key needs checking. Try again in a few minutes or contact support@zelvarix.ai
+- "No results found": Try broader filters — remove industry or location restrictions
+- Industry search: Type at least 2 characters to see industry suggestions
+- Company keyword vs Company name: Company name searches for an exact company (e.g. "Chevron"). Company keyword does a broad match (e.g. "funeral" finds all funeral-related companies)
+- Reveals not working: Check your reveals remaining in Settings — if at 0, you need to upgrade
+- AI panel not generating: Check your internet connection and try regenerating
+
+CONTACT & ESCALATION:
+- Email: support@zelvarix.ai
+- For billing issues: billing@zelvarix.ai
+- Response time: within 1 business day
+- If you cannot resolve an issue through this chat, say so and direct the user to support@zelvarix.ai
+
+Always be friendly, concise, and helpful. If you don't know something, say so honestly and direct the user to support@zelvarix.ai.`;
+
+  async function sendSupportMessage() {
+    if (!supportInput.trim() || supportLoading) return;
+    const userMsg = { role:"user", text:supportInput.trim(), id:Date.now() };
+    setSupportMessages(prev => [...prev, userMsg]);
+    setSupportInput("");
+    setSupportLoading(true);
+    try {
+      const history = [...supportMessages, userMsg]
+        .filter(m => m.role === "user" || m.role === "assistant")
+        .map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.text }));
+      const res = await fetch("/api/claude", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({
+          model: ANTHROPIC_MODEL,
+          max_tokens: 500,
+          system: SUPPORT_SYSTEM_PROMPT,
+          messages: history,
+        }),
+      });
+      const data = await res.json();
+      const reply = data.content?.[0]?.text || "Sorry, I couldn't process that. Please email support@zelvarix.ai.";
+      setSupportMessages(prev => [...prev, { role:"assistant", text:reply, id:Date.now() }]);
+    } catch {
+      setSupportMessages(prev => [...prev, { role:"assistant", text:"Connection error. Please email support@zelvarix.ai for help.", id:Date.now() }]);
+    }
+    setSupportLoading(false);
+  }
 
   async function revealContact(contact) {
     // Check if already revealed
@@ -659,17 +760,17 @@ export default function App() {
     window.gtag = function(){ window.dataLayer.push(arguments); };
     window.gtag('js', new Date());
     window.gtag('config', GA_MEASUREMENT_ID);
-    // Load Crisp chat
-    window.$crisp = [];
-    window.CRISP_WEBSITE_ID = CRISP_WEBSITE_ID;
-    const script2 = document.createElement('script');
-    script2.src = 'https://client.crisp.chat/l.js';
-    script2.async = true;
-    document.head.appendChild(script2);
+    // Crisp removed — replaced with native Zelvarix support bot
   }, []);
 
   // ── Auto-logout after 15 minutes of inactivity ──────────────────────────
   const inactivityRef = useRef(null);
+
+  useEffect(() => {
+    if (supportEndRef.current) {
+      supportEndRef.current.scrollIntoView({ behavior:"smooth" });
+    }
+  }, [supportMessages]);
 
   function resetInactivityTimer() {
     clearTimeout(inactivityRef.current);
@@ -2362,6 +2463,74 @@ export default function App() {
                 {bulkEmailLoading ? "Generating…" : `✦ Generate all ${bulkEmailContacts.length} emails`}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── SUPPORT BOT ──────────────────────────────────────────────────── */}
+      {/* Floating button */}
+      {!showSupportBot && (
+        <button onClick={()=>setShowSupportBot(true)} style={{ position:"fixed", bottom:52, right:24, width:52, height:52, borderRadius:"50%", background:T.green, border:"none", boxShadow:`0 4px 16px rgba(26,92,58,.35)`, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", zIndex:100, fontSize:22 }} title="Get help">
+          💬
+        </button>
+      )}
+
+      {/* Chat window */}
+      {showSupportBot && (
+        <div style={{ position:"fixed", bottom:52, right:24, width:360, height:480, background:"#fff", border:`1px solid ${T.border}`, borderRadius:12, boxShadow:`0 8px 40px ${T.shadowd}`, zIndex:100, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+          {/* Header */}
+          <div style={{ padding:"14px 18px", background:T.green, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ width:32, height:32, borderRadius:"50%", background:"rgba(255,255,255,.2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>✦</div>
+              <div>
+                <div style={{ fontSize:13, fontWeight:600, color:"#fff" }}>Zelvarix Support</div>
+                <div style={{ fontSize:10, color:"rgba(255,255,255,.7)" }}>Powered by Claude AI · Usually replies instantly</div>
+              </div>
+            </div>
+            <button onClick={()=>setShowSupportBot(false)} style={{ background:"none", border:"none", color:"rgba(255,255,255,.8)", cursor:"pointer", fontSize:18, lineHeight:1, padding:4 }}>×</button>
+          </div>
+
+          {/* Messages */}
+          <div style={{ flex:1, overflowY:"auto", padding:"16px 14px", display:"flex", flexDirection:"column", gap:10 }}>
+            {supportMessages.map(msg => (
+              <div key={msg.id} style={{ display:"flex", justifyContent:msg.role==="user"?"flex-end":"flex-start" }}>
+                <div style={{ maxWidth:"80%", padding:"9px 12px", borderRadius:msg.role==="user"?"12px 12px 2px 12px":"12px 12px 12px 2px", background:msg.role==="user"?T.green:T.paper, color:msg.role==="user"?"#fff":T.inkl, fontSize:13, lineHeight:1.6, whiteSpace:"pre-wrap" }}>
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+            {supportLoading && (
+              <div style={{ display:"flex", justifyContent:"flex-start" }}>
+                <div style={{ padding:"9px 14px", borderRadius:"12px 12px 12px 2px", background:T.paper, display:"flex", gap:4, alignItems:"center" }}>
+                  {[0,1,2].map(i => (
+                    <div key={i} style={{ width:6, height:6, borderRadius:"50%", background:T.inkmut, animation:"pulse 1s infinite", animationDelay:`${i*0.2}s` }} />
+                  ))}
+                </div>
+              </div>
+            )}
+            <div ref={supportEndRef} />
+          </div>
+
+          {/* Quick replies */}
+          {supportMessages.length === 1 && (
+            <div style={{ padding:"0 14px 10px", display:"flex", flexWrap:"wrap", gap:6 }}>
+              {["How do reveals work?","Why is live search not working?","How do I cancel?","What's included in each plan?"].map(q => (
+                <button key={q} onClick={()=>{ setSupportInput(q); setTimeout(()=>sendSupportMessage(),50); }} style={{ fontSize:11, padding:"4px 10px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:20, color:T.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontWeight:500 }}>{q}</button>
+              ))}
+            </div>
+          )}
+
+          {/* Input */}
+          <div style={{ padding:"10px 14px", borderTop:`1px solid ${T.border}`, display:"flex", gap:8 }}>
+            <input
+              className="input-base"
+              value={supportInput}
+              onChange={e=>setSupportInput(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&sendSupportMessage()}
+              placeholder="Ask a question…"
+              style={{ flex:1, fontSize:13, padding:"8px 12px" }}
+            />
+            <button onClick={sendSupportMessage} disabled={supportLoading||!supportInput.trim()} style={{ padding:"8px 14px", background:supportLoading||!supportInput.trim()?T.paperd:T.green, border:"none", borderRadius:4, color:supportLoading||!supportInput.trim()?T.inkmut:"#fff", fontWeight:600, fontSize:13, cursor:supportLoading||!supportInput.trim()?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all .15s" }}>→</button>
           </div>
         </div>
       )}
