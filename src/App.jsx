@@ -2164,6 +2164,71 @@ export default function App() {
           <div style={{ flex:1, padding:"28px 32px", overflowY:"auto", paddingBottom:60 }}>
             <SectionHeading label="Settings" sub="Manage your account preferences and integrations" />
 
+            {/* ── PLAN & USAGE CARD ─────────────────────────────────────────── */}
+            <div style={{ background:"#fff", border:`2px solid ${T.greenb}`, borderRadius:6, padding:"22px 24px", marginBottom:20 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20 }}>
+                <div>
+                  <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:20, color:T.ink, marginBottom:4 }}>Plan & Usage</div>
+                  <div style={{ fontSize:13, color:T.inkm }}>Resets monthly on your billing date</div>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ fontSize:11, fontWeight:700, color:T.green, background:T.greenl, border:`1px solid ${T.greenb}`, padding:"4px 12px", borderRadius:20, textTransform:"uppercase", letterSpacing:1 }}>
+                    {(activePlan?.name || "Starter")} Plan
+                  </span>
+                  <button onClick={()=>setAppView("pricing")} style={{ fontSize:12, fontWeight:600, padding:"5px 12px", background:T.ink, border:"none", borderRadius:4, color:T.cream, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Upgrade →</button>
+                </div>
+              </div>
+
+              {/* Reveals */}
+              <div style={{ marginBottom:18 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:T.ink }}>Contact Reveals</div>
+                  <div style={{ fontFamily:"'DM Mono',monospace", fontSize:13, color:revealsUsed >= revealsTotal ? T.red : T.green, fontWeight:600 }}>
+                    {revealsTotal - revealsUsed} remaining
+                    <span style={{ color:T.inkmut, fontWeight:400 }}> / {revealsTotal}</span>
+                  </div>
+                </div>
+                <div style={{ height:8, background:T.paperd, borderRadius:4, overflow:"hidden" }}>
+                  <div style={{ height:"100%", width:`${Math.min(100, Math.round(revealsUsed/revealsTotal*100))}%`, background: revealsUsed/revealsTotal > 0.8 ? T.red : revealsUsed/revealsTotal > 0.5 ? T.amber : T.green, borderRadius:4, transition:"width .3s" }} />
+                </div>
+                <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
+                  <div style={{ fontSize:11, color:T.inkmut }}>{revealsUsed} used</div>
+                  {revealsUsed >= revealsTotal && (
+                    <div style={{ fontSize:11, color:T.red, fontWeight:600 }}>Limit reached — upgrade to reveal more</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Searches */}
+              <div style={{ marginBottom:18 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:T.ink }}>Searches</div>
+                  <div style={{ fontFamily:"'DM Mono',monospace", fontSize:13, color:searchesUsed >= searchesTotal ? T.red : T.inkl, fontWeight:600 }}>
+                    {searchesTotal - searchesUsed} remaining
+                    <span style={{ color:T.inkmut, fontWeight:400 }}> / {searchesTotal}</span>
+                  </div>
+                </div>
+                <div style={{ height:8, background:T.paperd, borderRadius:4, overflow:"hidden" }}>
+                  <div style={{ height:"100%", width:`${Math.min(100, Math.round(searchesUsed/searchesTotal*100))}%`, background: searchesUsed/searchesTotal > 0.8 ? T.red : searchesUsed/searchesTotal > 0.5 ? T.amber : T.green, borderRadius:4, transition:"width .3s" }} />
+                </div>
+                <div style={{ fontSize:11, color:T.inkmut, marginTop:4 }}>{searchesUsed} used · {resultsPerSearch} results per search</div>
+              </div>
+
+              {/* Plan features summary */}
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, paddingTop:16, borderTop:`1px solid ${T.border}` }}>
+                {[
+                  { label:"Reveals/month", value:revealsTotal },
+                  { label:"Searches/month", value:searchesTotal },
+                  { label:"Results/search", value:resultsPerSearch },
+                ].map(item => (
+                  <div key={item.label} style={{ textAlign:"center", padding:"10px", background:T.paper, borderRadius:4 }}>
+                    <div style={{ fontFamily:"'DM Mono',monospace", fontSize:22, fontWeight:500, color:T.green, marginBottom:2 }}>{item.value}</div>
+                    <div style={{ fontSize:11, color:T.inkm }}>{item.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Booking Link */}
             <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:6, padding:"22px 24px", marginBottom:20 }}>
               <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:20, color:T.ink, marginBottom:4 }}>Meeting booking link</div>
@@ -2199,6 +2264,7 @@ export default function App() {
                 Generate personalised outreach emails for multiple contacts at once using Claude AI. Available in the Discover tab — select contacts then click "✦ Generate emails".<br/>
                 <strong>Starter:</strong> Single contact AI only &nbsp;·&nbsp; <strong>Pro:</strong> Up to 10 contacts at once &nbsp;·&nbsp; <strong>Team:</strong> Unlimited
               </div>
+              <button onClick={()=>setAppView("pricing")} style={{ marginTop:12, fontSize:12, fontWeight:600, padding:"7px 16px", background:T.green, border:"none", borderRadius:4, color:"#fff", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>View all plans →</button>
             </div>
           </div>
         )}
