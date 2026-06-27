@@ -1,8 +1,3 @@
-// ============================================================
-//  Vercel Serverless Function — Anthropic Claude Proxy
-//  File location in your repo: /api/claude.js
-// ============================================================
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -23,8 +18,8 @@ export default async function handler(req, res) {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'Content-Type':      'application/json',
-        'x-api-key':         apiKey,
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify(payload),
@@ -36,3 +31,5 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('Claude proxy error:', err);
     return res.status(500).json({ error: err.message });
+  }
+}
