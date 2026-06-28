@@ -463,6 +463,8 @@ export default function App() {
   const [searchesTotal, setSearchesTotal]     = useState(30);
   const [resultsPerSearch, setResultsPerSearch] = useState(3);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [isDemo, setIsDemo]                     = useState(false);
+  const [isPaidCustomer, setIsPaidCustomer]     = useState(false);
   const [showSupportBot, setShowSupportBot]     = useState(false);
   const [supportMessages, setSupportMessages]   = useState([
     { role:"assistant", text:"Hi! I'm Zelvarix Support. How can I help you today?", id:1 }
@@ -820,7 +822,10 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
         setCurrentUser(user);
         // Load profile
         const { data: profile } = await sb.from("profiles").select("*").eq("id", user.id).single();
-        if (profile) setOnboardData({ name: profile.name||"", company: profile.company||"", role: profile.role||"", goal: profile.goal||"" });
+        if (profile) {
+          setOnboardData({ name: profile.name||"", company: profile.company||"", role: profile.role||"", goal: profile.goal||"" });
+          if (profile.is_demo) setIsDemo(true);
+        }
         // Load team
         const { data: mem } = await sb.from("team_members").select("team_id, role").eq("user_id", user.id).maybeSingle();
         if (mem) {
@@ -832,6 +837,9 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
             setRevealsTotal(team.reveals_total || 20);
             setSearchesUsed(team.searches_used || 0);
             setSearchesTotal(team.searches_total || 30);
+            // Auto-switch to live data for paying customers
+            const paid = team.plan && ['starter','pro','team'].includes(team.plan) && (team.reveals_total || 0) > 0;
+            if (paid) { setIsPaidCustomer(true); setUseLiveData(true); }
             setResultsPerSearch(team.results_per_search || 3);
           }
           const { data: members } = await sb.from("team_members").select("id, user_id, role, status, joined_at").eq("team_id", mem.team_id);
@@ -903,7 +911,10 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
     setCurrentUser(user);
     // Load profile
     const { data: profile } = await sb.from("profiles").select("*").eq("id", user.id).single();
-    if (profile) setOnboardData({ name: profile.name||"", company: profile.company||"", role: profile.role||"", goal: profile.goal||"" });
+    if (profile) {
+      setOnboardData({ name: profile.name||"", company: profile.company||"", role: profile.role||"", goal: profile.goal||"" });
+      if (profile.is_demo) setIsDemo(true);
+    }
     // Load team
     const { data: mem } = await sb.from("team_members").select("team_id, role").eq("user_id", user.id).maybeSingle();
     if (mem) {
@@ -1545,7 +1556,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
     { id:"pipeline",  label:"Pipeline" },
     { id:"lists",     label:"Lists" },
     ...(perms.canViewTeam     ? [{ id:"team",    label:"Team"    }] : []),
-    ...(perms.canManageBilling? [{ id:"billing", label:"Billing" }] : []),
+    ...(perms.canManageBilling && !isDemo ? [{ id:"billing", label:"Billing" }] : []),
     { id:"settings", label:"Settings" },
   ];
 
@@ -1691,11 +1702,25 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
               {/* Toolbar */}
               <div style={{ padding:"10px 20px", borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"space-between", background:"#fff", flexShrink:0, gap:10 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <button onClick={()=>{ const next=!useLiveData; setUseLiveData(next); if(next) runPDLSearch(1,false); }} style={{ fontSize:11, fontWeight:600, padding:"4px 10px", border:`1px solid ${useLiveData?T.green:T.border}`, borderRadius:3, background:useLiveData?T.greenl:"#fff", color:useLiveData?T.green:T.inkm, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", gap:5 }}>
-                    <span style={{ width:7, height:7, borderRadius:"50%", background:useLiveData?T.green:T.inkmut, display:"inline-block", animation:useLiveData&&pdlLoading?"pulse 1s infinite":"none" }} />
-                    {useLiveData ? "Live Data" : "Sample Data"}
-                  </button>
+                  {/* Demo: show Sample Data badge only. Paid: show Live Data badge only. Others: show toggle */}
+                  {isDemo ? (
+                    <div style={{ fontSize:11, fontWeight:600, padding:"4px 10px", border:`1px solid ${T.amber}`, borderRadius:3, background:T.amberl, color:T.amber, display:"flex", alignItems:"center", gap:5 }}>
+                      <span style={{ width:7, height:7, borderRadius:"50%", background:T.amber, display:"inline-block" }} />
+                      Demo Mode
+                    </div>
+                  ) : isPaidCustomer ? (
+                    <div style={{ fontSize:11, fontWeight:600, padding:"4px 10px", border:`1px solid ${T.green}`, borderRadius:3, background:T.greenl, color:T.green, display:"flex", alignItems:"center", gap:5 }}>
+                      <span style={{ width:7, height:7, borderRadius:"50%", background:T.green, display:"inline-block", animation:pdlLoading?"pulse 1s infinite":"none" }} />
+                      Live Data
+                    </div>
+                  ) : (
+                    <button onClick={()=>{ const next=!useLiveData; setUseLiveData(next); if(next) runPDLSearch(1,false); }} style={{ fontSize:11, fontWeight:600, padding:"4px 10px", border:`1px solid ${useLiveData?T.green:T.border}`, borderRadius:3, background:useLiveData?T.greenl:"#fff", color:useLiveData?T.green:T.inkm, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", gap:5 }}>
+                      <span style={{ width:7, height:7, borderRadius:"50%", background:useLiveData?T.green:T.inkmut, display:"inline-block", animation:useLiveData&&pdlLoading?"pulse 1s infinite":"none" }} />
+                      {useLiveData ? "Live Data" : "Sample Data"}
+                    </button>
+                  )}
                   {pdlError && <span style={{ fontSize:11, color:T.amber }}>{pdlError}</span>}
+                  {isDemo && <span style={{ fontSize:11, fontWeight:600, color:T.amber, background:T.amberl, border:`1px solid ${T.amberb}`, borderRadius:3, padding:"3px 8px" }}>Demo Mode — Sample Data Only</span>}
                   <span style={{ fontSize:13, color:T.inkm }}><span style={{ fontFamily:"'DM Mono',monospace", color:T.green, fontWeight:500 }}>{useLiveData ? displayTotal.toLocaleString() : sorted.length}</span> {useLiveData ? "live contacts" : `of ${MOCK_CONTACTS.length} samples`}</span>
                   <button onClick={()=>{ setSelectMode(s=>!s); setSelectedForExport(new Set()); }} style={{ fontSize:11, fontWeight:500, padding:"4px 10px", border:`1px solid ${selectMode?T.green:T.border}`, borderRadius:3, background:selectMode?T.greenl:"#fff", color:selectMode?T.green:T.inkm, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all .15s" }}>
                     {selectMode?"✓ Selecting":"Select"}
@@ -1769,7 +1794,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                       <div style={{ display:"flex", gap:4, justifyContent:"flex-end", alignItems:"center" }}>
                         {exportedIds.has(c.id) && <span style={{ fontSize:9, fontWeight:700, color:T.inkm, background:T.paper, border:`1px solid ${T.border}`, borderRadius:2, padding:"1px 4px" }}>CSV</span>}
                         {savedIds.has(c.id) && <span style={{ fontSize:9, fontWeight:700, color:T.amber, background:T.amberl, border:`1px solid ${T.amberb}`, borderRadius:2, padding:"1px 4px" }}>★</span>}
-                        {useLiveData && !revealedIds.has(c.id) && revealCache[c.id] && (
+                        {useLiveData && !isDemo && !revealedIds.has(c.id) && revealCache[c.id] && (
                           <button onClick={e=>{e.stopPropagation();revealContact(c);}} style={{ fontSize:9, fontWeight:700, padding:"3px 6px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, cursor:"pointer", color:T.green, fontFamily:"'DM Sans',sans-serif", whiteSpace:"nowrap" }}>Reveal</button>
                         )}
                         <button onClick={e=>{e.stopPropagation();setAiContact(c);}} style={{ width:26, height:26, background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, cursor:"pointer", fontSize:12, color:T.green, display:"flex", alignItems:"center", justifyContent:"center" }} title="AI Insights">✦</button>
@@ -2391,7 +2416,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
       </div>
 
       {/* ── UPGRADE PROMPT MODAL ──────────────────────────────────────────── */}
-      {showUpgradePrompt && (
+      {showUpgradePrompt && !isDemo && !isPaidCustomer && (
         <div style={{ position:"fixed", inset:0, background:"rgba(26,24,20,.5)", zIndex:400, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }} onClick={()=>setShowUpgradePrompt(false)}>
           <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:32, width:"100%", maxWidth:400, boxShadow:`0 8px 40px ${T.shadowd}`, textAlign:"center" }} onClick={e=>e.stopPropagation()}>
             <div style={{ fontSize:36, marginBottom:12 }}>🔒</div>
