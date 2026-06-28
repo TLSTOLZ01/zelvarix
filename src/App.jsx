@@ -262,18 +262,18 @@ const PLANS = [
   },
   {
     id:"pro", name:"Pro", tagline:"For growing sales teams",
-    monthlyPrice:99, yearlyPrice:74, credits:50, maxSeats:5,
+    monthlyPrice:99, yearlyPrice:74, credits:50, maxSeats:10,
     searches:50, resultsPerSearch:5,
     badge:"Most Popular", highlight:true,
-    features:["50 shared reveals/month","50 searches/month (5 results each)","Up to 5 team seats included","All search filters","CSV export (bulk & selective)","Full AI panel — ice breakers, scoring, emails","Bulk AI email generator (up to 10 at once)","Unlimited lists","Team management & roles","Priority support"],
+    features:["50 shared reveals/month","50 searches/month (5 results each)","All search filters","CSV export (bulk & selective)","Full AI panel — ice breakers, scoring, emails","Bulk AI email generator (up to 10 at once)","Unlimited lists","Team management & roles","Priority support"],
     missing:["Custom reveal pools per seat","Dedicated account manager","SSO / SAML"],
   },
   {
     id:"team", name:"Team", tagline:"For scaling revenue orgs",
-    monthlyPrice:null, yearlyPrice:249, credits:100, maxSeats:15,
+    monthlyPrice:null, yearlyPrice:249, credits:100, maxSeats:50,
     searches:80, resultsPerSearch:10, annualOnly:true,
     badge:"Best Value", highlight:false,
-    features:["100 shared reveals/month","80 searches/month (10 results each)","Up to 15 team seats included","Everything in Pro","Custom reveal pools per seat","Buyer intent signals","Job change tracking","Chrome extension","API access (full)","Zapier integration","Dedicated account manager","SSO / SAML","SLA-backed uptime"],
+    features:["100 shared reveals/month","80 searches/month (10 results each)","Everything in Pro","Custom reveal pools per seat","Buyer intent signals","Job change tracking","Chrome extension","API access (full)","Zapier integration","Dedicated account manager","SSO / SAML","SLA-backed uptime"],
     missing:[],
   },
   {
@@ -296,7 +296,7 @@ const FAQS = [
   { q:"What is a reveal?", a:"A reveal is when you click to see a contact's verified email and phone number. Browsing search results is always free — you only spend a reveal when you want the actual contact details." },
   { q:"What is a search?", a:"A search is one query to our contact database. Each search returns 3–10 results depending on your plan. Reveals come from those results — you choose which contacts are worth revealing." },
   { q:"Do unused reveals roll over?", a:"Reveals and searches reset monthly on your billing date. They do not roll over, so use them each month for maximum value." },
-  { q:"Can I change plans anytime?", a:"Yes for Starter and Pro — upgrade or downgrade anytime with no annual commitment. The Team plan is annual-only, billed at $249/mo x 12 months ($2,988/yr). Downgrades from Team take effect at the end of your annual term." },
+  { q:"Can I change plans anytime?", a:"Yes for Starter and Pro — upgrade or downgrade anytime, no annual commitment required. The Team plan is annual-only and billed as $249/seat/month × 12 months. Downgrades from Team take effect at the end of your annual term." },
   { q:"Is there a free trial?", a:"Every paid plan starts with a 7-day free trial — no credit card required. Full access to all features during the trial." },
   { q:"How does team billing work?", a:"Pro and Team plans are billed per seat per month. Reveals are shared across the team as a single pool, managed by your Admin." },
   { q:"What happens if we run out of reveals?", a:"You'll see a notification when reveals run low. Once exhausted, contact details are hidden until your monthly reset. Upgrade anytime for immediate access to more reveals." },
@@ -500,7 +500,7 @@ export default function App() {
     history: MOCK_BILLING.history,
   };
   const [onboardStep, setOnboardStep] = useState(0);
-  const [onboardData, setOnboardData] = useState({ name:"", company:"", role:"", goal:"" });
+  const [onboardData, setOnboardData] = useState({ name:"", company:"", role:"", goal:"", bookingLink:"" });
 
   const activeUser = teamMembers.find(u => u.id === activeUserId) || teamMembers[0] || { role:"admin", name:"", avatar:"" };
   const perms      = ROLE_PERMISSIONS[activeUser.role] || ROLE_PERMISSIONS.admin;
@@ -577,12 +577,14 @@ PRODUCT OVERVIEW:
 Zelvarix is a B2B prospecting platform that helps sales teams find decision makers, get verified contact information, and generate AI-powered personalized outreach emails. It is built for small to medium businesses and individual sales reps. Zelvarix uses its own proprietary contact database of 1.3B+ profiles — do not mention or reference any third-party data providers under any circumstances.
 
 PLANS & PRICING:
-- Starter: $59/month — 30 searches, 3 results per search, 20 reveals per month
-- Pro: $99/month — 50 searches, 5 results per search, 50 reveals per month  
-- Team: $249/month — 80 searches, 10 results per search, 100 reveals per month
+- Starter: $59/month flat — 1 seat, 30 searches (3 results each), 20 reveals per month
+- Pro: $99/month flat — up to 5 seats, 50 searches (5 results each), 50 reveals per month
+- Team: $249/month billed annually ($2,988/year) — up to 15 seats, 80 searches (10 results each), 100 reveals per month. Team is annual-only — no monthly option.
 - All plans share reveals as a team pool
-- No annual contracts required — cancel anytime
-- 7-day free trial on all plans, no credit card required
+- Starter and Pro: cancel anytime, no annual commitment
+- Team: annual commitment only — cancels at end of annual term
+- 7-day free trial on Starter and Pro — no credit card required
+- Top-up packs available when reveals run out: Small ($9, +10 reveals), Medium ($19, +25 reveals), Large ($35, +50 reveals)
 
 HOW SEARCHES WORK:
 - Users filter by industry, company name, company keyword, size, seniority, department, state, city
@@ -604,6 +606,24 @@ AI FEATURES:
 - Bulk email generator: select multiple contacts and generate personalized emails for all of them
 - Booking link: add your Calendly/Cal.com link in Settings and it auto-appears in AI-drafted emails
 - AI features use Claude AI (Anthropic)
+
+BOOKING LINK & CALENDLY SETUP:
+- A booking link is your personal meeting scheduling link (e.g. Calendly or Cal.com)
+- When set in Zelvarix Settings or during onboarding, it is automatically added to every AI-drafted outreach email
+- This lets prospects click directly to book a call with you — no back-and-forth emails needed
+- HOW TO SET UP CALENDLY (free):
+  1. Go to calendly.com and click Sign Up — it is free to start
+  2. Connect your Google Calendar or Outlook calendar
+  3. Create a new Event Type — choose "30 Minute Meeting" as a starting point
+  4. Give it a name like "Quick Call with [Your Name]"
+  5. Set your available hours (e.g. Mon-Fri 9am-5pm)
+  6. Click Save and you will get a link like: calendly.com/your-name/30min
+  7. Copy that link
+  8. Go to Zelvarix Settings tab, paste it in the Booking Link field, and click Save
+  9. From now on every AI-drafted email will include your booking link automatically
+- Cal.com is a free open-source alternative to Calendly — works the same way
+- You can also add or update your booking link anytime in the Settings tab
+- If you do not have a booking link, you can skip that step during onboarding and add it later
 
 PIPELINE & LISTS:
 - Star (☆) any contact to save them to your pipeline
@@ -948,8 +968,9 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
     // Load profile
     const { data: profile } = await sb.from("profiles").select("*").eq("id", user.id).single();
     if (profile) {
-      setOnboardData({ name: profile.name||"", company: profile.company||"", role: profile.role||"", goal: profile.goal||"" });
+      setOnboardData({ name: profile.name||"", company: profile.company||"", role: profile.role||"", goal: profile.goal||"", bookingLink: profile.booking_link||"" });
       if (profile.is_demo) setIsDemo(true);
+      if (profile.booking_link) setBookingLink(profile.booking_link);
     }
     // Load team
     const { data: mem } = await sb.from("team_members").select("team_id, role").eq("user_id", user.id).maybeSingle();
@@ -1021,6 +1042,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
     { title:"Your company?",          field:"company", placeholder:"Company name" },
     { title:"Your role?",             field:"role",    placeholder:"e.g. AE, SDR, Founder, VP Sales" },
     { title:"Primary goal?",          field:"goal",    placeholder:"e.g. Book 10 demos/month" },
+    { title:"Add your booking link?", field:"bookingLink", placeholder:"https://calendly.com/your-name/30min", sub:"Optional — auto-appears in your AI-drafted emails. You can add this later in Settings.", skippable:true },
   ];
 
 
@@ -1090,15 +1112,15 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                     <>
                       <div style={{ display:"flex", alignItems:"baseline", gap:3 }}>
                         <span style={{ fontFamily:"'DM Mono',monospace", fontSize:36, fontWeight:500, color:T.ink, lineHeight:1 }}>${plan.yearlyPrice}</span>
-                        <span style={{ fontSize:12, color:T.inkm }}>/mo</span>
+                        <span style={{ fontSize:12, color:T.inkm }}>/seat/mo</span>
                       </div>
-                      <div style={{ fontSize:11, color:T.green, marginTop:3, fontWeight:600 }}>Billed annually (${plan.yearlyPrice * 12}/yr · up to {plan.maxSeats} seats) · No monthly option</div>
+                      <div style={{ fontSize:11, color:T.green, marginTop:3, fontWeight:600 }}>Billed annually (${plan.yearlyPrice * 12}/yr) · No monthly option</div>
                     </>
                   ) : price ? (
                     <>
                       <div style={{ display:"flex", alignItems:"baseline", gap:3 }}>
                         <span style={{ fontFamily:"'DM Mono',monospace", fontSize:36, fontWeight:500, color:plan.highlight?"#fff":T.ink, lineHeight:1 }}>${price}</span>
-                        <span style={{ fontSize:12, color:plan.highlight?"rgba(255,255,255,.4)":T.inkm }}>/mo</span>
+                        <span style={{ fontSize:12, color:plan.highlight?"rgba(255,255,255,.4)":T.inkm }}>/seat/mo</span>
                       </div>
                       {pricingYearly && plan.monthlyPrice && <div style={{ fontSize:11, color:T.green, marginTop:3, fontWeight:500 }}>Save ${(plan.monthlyPrice-plan.yearlyPrice)*12}/yr</div>}
                     </>
@@ -1107,7 +1129,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                   )}
                   <div style={{ display:"flex", gap:6, marginTop:10, flexWrap:"wrap" }}>
                     <span style={{ fontSize:11, color:plan.highlight?"rgba(255,255,255,.55)":T.inkm, background:plan.highlight?"rgba(255,255,255,.08)":T.paper, border:`1px solid ${plan.highlight?"rgba(255,255,255,.12)":T.border}`, padding:"2px 7px", borderRadius:3 }}>
-                      {plan.maxSeats ? `Up to ${plan.maxSeats} seat${plan.maxSeats>1?"s":""}` : "Unlimited seats"}
+                      {plan.maxSeats ? `${plan.maxSeats} seat${plan.maxSeats>1?"s":""}` : "Unlimited seats"}
                     </span>
                     <span style={{ fontSize:11, color:plan.highlight?"rgba(255,255,255,.55)":T.inkm, background:plan.highlight?"rgba(255,255,255,.08)":T.paper, border:`1px solid ${plan.highlight?"rgba(255,255,255,.12)":T.border}`, padding:"2px 7px", borderRadius:3 }}>
                       {plan.credits ? `${plan.credits} reveals/mo` : "Unlimited reveals"}
@@ -1583,12 +1605,23 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
             <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:24, color:T.ink, marginBottom:6, letterSpacing:-.3 }}>{step.title}</div>
             {step.sub && <div style={{ fontSize:13, color:T.inkm, marginBottom:22 }}>{step.sub}</div>}
             {step.field && (
-              <input autoFocus className="input-base" value={onboardData[step.field]} onChange={e=>setOnboardData(p=>({...p,[step.field]:e.target.value}))} placeholder={step.placeholder} onKeyDown={e=>e.key==="Enter"&&(onboardStep<onboardSteps.length-1?setOnboardStep(s=>s+1):setAppView("app"))} style={{ marginBottom:20 }} />
+              <input autoFocus className="input-base" value={onboardData[step.field]||""} onChange={e=>setOnboardData(p=>({...p,[step.field]:e.target.value}))} placeholder={step.placeholder} onKeyDown={e=>e.key==="Enter"&&(onboardStep<onboardSteps.length-1?setOnboardStep(s=>s+1):setAppView("app"))} style={{ marginBottom:step.skippable?8:20 }} />
             )}
-            <button onClick={async()=>{ if(onboardStep<onboardSteps.length-1){ setOnboardStep(s=>s+1); } else { try { if(currentUser){ await sb.from("profiles").upsert({ id:currentUser.id, name:onboardData.name, company:onboardData.company, role:onboardData.role, goal:onboardData.goal }); } } catch(e){ console.warn("Profile save error:", e); } setAppView("app"); } }} style={{ width:"100%", padding:"11px", background:T.ink, border:"none", borderRadius:4, color:T.cream, fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+            <button onClick={async()=>{ if(onboardStep<onboardSteps.length-1){ setOnboardStep(s=>s+1); } else { try { if(currentUser){ await sb.from("profiles").upsert({ id:currentUser.id, name:onboardData.name, company:onboardData.company, role:onboardData.role, goal:onboardData.goal, booking_link:onboardData.bookingLink||null });
+              if (onboardData.bookingLink) setBookingLink(onboardData.bookingLink); } } catch(e){ console.warn("Profile save error:", e); } setAppView("app"); } }} style={{ width:"100%", padding:"11px", background:T.ink, border:"none", borderRadius:4, color:T.cream, fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
               {onboardStep===0?"Get started →":onboardStep<onboardSteps.length-1?"Continue →":"Launch Zelvarix →"}
             </button>
-            {onboardStep>0 && <button onClick={()=>setOnboardStep(s=>s-1)} style={{ width:"100%", marginTop:8, padding:"8px", background:"none", border:"none", color:T.inkmut, cursor:"pointer", fontSize:13, fontFamily:"'DM Sans',sans-serif" }}>← Back</button>}
+            {step.skippable && (
+              <>
+                <div style={{ fontSize:11, color:T.inkmut, marginTop:10, marginBottom:8, lineHeight:1.6, padding:"8px 10px", background:T.paper, borderRadius:4, border:`1px solid ${T.border}` }}>
+                  💡 <strong>How to get your link:</strong> Sign up free at calendly.com, create a 30-min meeting, copy your URL. You can skip this and add it later in Settings.
+                </div>
+                <button onClick={async()=>{ try { if(currentUser){ await sb.from("profiles").upsert({ id:currentUser.id, name:onboardData.name, company:onboardData.company, role:onboardData.role, goal:onboardData.goal, booking_link:null }); } } catch(e){ console.warn("Skip:", e); } setAppView("app"); }} style={{ width:"100%", padding:"9px", background:"none", border:`1px solid ${T.border}`, borderRadius:4, color:T.inkmut, cursor:"pointer", fontSize:13, fontFamily:"'DM Sans',sans-serif" }}>
+                  Skip for now — add in Settings later
+                </button>
+              </>
+            )}
+            {onboardStep>0 && <button onClick={()=>setOnboardStep(s=>s-1)} style={{ width:"100%", marginTop:6, padding:"8px", background:"none", border:"none", color:T.inkmut, cursor:"pointer", fontSize:12, fontFamily:"'DM Sans',sans-serif" }}>← Back</button>}
           </div>
         </div>
       </div>
@@ -2303,7 +2336,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                   <div style={{ height:4, background:T.paperd, borderRadius:2, overflow:"hidden", marginBottom:8 }}>
                     <div style={{ height:"100%", width:`${Math.round(activeBilling.seats.used/activeBilling.seats.total*100)}%`, background:T.green, borderRadius:2 }} />
                   </div>
-                  <div style={{ fontSize:11, color:T.inkmut }}>Flat rate — {activeBilling.seats.total} seats included</div>
+                  <div style={{ fontSize:11, color:T.inkmut }}>${activeBilling.seats.pricePerSeat}/seat/mo</div>
                 </div>
                 {/* Credits */}
                 <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, padding:"14px 18px", flex:1 }}>
@@ -2669,7 +2702,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
           {/* Quick replies */}
           {supportMessages.length === 1 && (
             <div style={{ padding:"0 14px 10px", display:"flex", flexWrap:"wrap", gap:6 }}>
-              {["How do reveals work?","Why is live search not working?","How do I cancel?","What's included in each plan?"].map(q => (
+              {["How do reveals work?","How do I set up my booking link?","How do I cancel?","What's included in each plan?"].map(q => (
                 <button key={q} onClick={()=>sendSupportMessageText(q)} style={{ fontSize:11, padding:"4px 10px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:20, color:T.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontWeight:500 }}>{q}</button>
               ))}
             </div>
