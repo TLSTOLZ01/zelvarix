@@ -286,6 +286,12 @@ const PLANS = [
   },
 ];
 
+const TOPUP_PACKS = [
+  { id:"small",  label:"Small Pack",  reveals:10, searches:10, price:9,  priceStr:"$9" },
+  { id:"medium", label:"Medium Pack", reveals:25, searches:25, price:19, priceStr:"$19" },
+  { id:"large",  label:"Large Pack",  reveals:50, searches:50, price:35, priceStr:"$35" },
+];
+
 const FAQS = [
   { q:"What is a reveal?", a:"A reveal is when you click to see a contact's verified email and phone number. Browsing search results is always free — you only spend a reveal when you want the actual contact details." },
   { q:"What is a search?", a:"A search is one query to our contact database. Each search returns 3–10 results depending on your plan. Reveals come from those results — you choose which contacts are worth revealing." },
@@ -468,6 +474,8 @@ export default function App() {
   const [searchesTotal, setSearchesTotal]     = useState(30);
   const [resultsPerSearch, setResultsPerSearch] = useState(3);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [showTopUpModal, setShowTopUpModal]       = useState(false);
+  const [topUpLoading, setTopUpLoading]           = useState(null); // pack id being purchased
   const [isDemo, setIsDemo]                     = useState(false);
   const [isPaidCustomer, setIsPaidCustomer]     = useState(false);
   const [showSupportBot, setShowSupportBot]     = useState(false);
@@ -674,6 +682,29 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
     });
     setSupportInput("");
     setSupportLoading(true);
+  }
+
+  async function applyTopUp(pack) {
+    // TODO: Wire to Stripe one-time payment next week
+    // For now, simulate purchase and apply credits directly
+    setTopUpLoading(pack.id);
+    try {
+      const newRevealsTotal = revealsTotal + pack.reveals;
+      const newSearchesTotal = searchesTotal + pack.searches;
+      setRevealsTotal(newRevealsTotal);
+      setSearchesTotal(newSearchesTotal);
+      if (sbTeam) {
+        await sb.from("teams").update({
+          reveals_total: newRevealsTotal,
+          searches_total: newSearchesTotal,
+        }).eq("id", sbTeam.id);
+      }
+      setShowTopUpModal(false);
+      setShowUpgradePrompt(false);
+    } catch(e) {
+      console.warn("Top-up error:", e);
+    }
+    setTopUpLoading(null);
   }
 
   async function revealContact(contact) {
@@ -2346,6 +2377,9 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                 <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
                   <div style={{ fontSize:11, color:T.inkmut }}>{revealsUsed} used</div>
                   {revealsUsed >= revealsTotal && (
+                    <button onClick={()=>setShowTopUpModal(true)} style={{ fontSize:11, fontWeight:600, padding:"3px 10px", background:T.green, border:"none", borderRadius:3, color:"#fff", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>+ Top up</button>
+                  )}
+                  {revealsUsed >= revealsTotal && (
                     <div style={{ fontSize:11, color:T.red, fontWeight:600 }}>Limit reached — upgrade to reveal more</div>
                   )}
                 </div>
@@ -2426,16 +2460,40 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
       {/* ── UPGRADE PROMPT MODAL ──────────────────────────────────────────── */}
       {showUpgradePrompt && !isDemo && !isPaidCustomer && (
         <div style={{ position:"fixed", inset:0, background:"rgba(26,24,20,.5)", zIndex:400, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }} onClick={()=>setShowUpgradePrompt(false)}>
-          <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:32, width:"100%", maxWidth:400, boxShadow:`0 8px 40px ${T.shadowd}`, textAlign:"center" }} onClick={e=>e.stopPropagation()}>
+          <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:32, width:"100%", maxWidth:440, boxShadow:`0 8px 40px ${T.shadowd}`, textAlign:"center" }} onClick={e=>e.stopPropagation()}>
             <div style={{ fontSize:36, marginBottom:12 }}>🔒</div>
             <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:24, color:T.ink, marginBottom:8 }}>Out of reveals</div>
             <div style={{ fontSize:13, color:T.inkm, marginBottom:20, lineHeight:1.7 }}>
-              You've used all {revealsTotal} reveals for this month. Upgrade your plan to reveal more contacts.
+              You've used all {revealsTotal} reveals for this month. Top up now or upgrade your plan.
             </div>
-            <div style={{ background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:6, padding:"12px 16px", marginBottom:20 }}>
-              <div style={{ fontSize:12, color:T.green, fontWeight:600, marginBottom:4 }}>Reveals reset on your next billing date</div>
-              <div style={{ fontSize:12, color:T.inkm }}>Or upgrade now for immediate access</div>
+
+            {/* Top-up packs */}
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontSize:11, fontWeight:600, color:T.inkmut, textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>Buy a top-up pack</div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
+                {TOPUP_PACKS.map(pack => (
+                  <button key={pack.id} onClick={()=>applyTopUp(pack)} disabled={topUpLoading===pack.id} style={{ padding:"12px 8px", background:topUpLoading===pack.id?T.greenl:T.paper, border:`1.5px solid ${topUpLoading===pack.id?T.green:T.border}`, borderRadius:6, cursor:topUpLoading===pack.id?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all .15s" }}>
+                    <div style={{ fontFamily:"'DM Mono',monospace", fontSize:18, fontWeight:600, color:T.green, marginBottom:2 }}>{pack.priceStr}</div>
+                    <div style={{ fontSize:10, fontWeight:600, color:T.ink, marginBottom:4 }}>{pack.label}</div>
+                    <div style={{ fontSize:9, color:T.inkm, lineHeight:1.4 }}>+{pack.reveals} reveals<br/>+{pack.searches} searches</div>
+                    {topUpLoading===pack.id && <div style={{ fontSize:9, color:T.green, marginTop:4 }}>Processing…</div>}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize:10, color:T.inkmut, marginTop:8 }}>* Payment via Stripe. Credits added immediately.</div>
             </div>
+
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
+              <div style={{ flex:1, height:1, background:T.border }} />
+              <span style={{ fontSize:11, color:T.inkmut }}>or</span>
+              <div style={{ flex:1, height:1, background:T.border }} />
+            </div>
+
+            <div style={{ background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:6, padding:"10px 14px", marginBottom:16 }}>
+              <div style={{ fontSize:12, color:T.green, fontWeight:600, marginBottom:2 }}>Reveals reset on your next billing date</div>
+              <div style={{ fontSize:11, color:T.inkm }}>Upgrade for more reveals every month</div>
+            </div>
+
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={()=>setShowUpgradePrompt(false)} style={{ flex:1, padding:"10px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:5, color:T.inkl, fontWeight:500, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Close</button>
               <button onClick={()=>{ setShowUpgradePrompt(false); setAppView("pricing"); }} style={{ flex:1, padding:"10px", background:T.green, border:"none", borderRadius:5, color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Upgrade plan →</button>
@@ -2513,6 +2571,44 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
               }} style={{ padding:"10px 20px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:13, cursor:bulkEmailLoading?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", opacity:bulkEmailLoading?.6:1 }}>
                 {bulkEmailLoading ? "Generating…" : `✦ Generate all ${bulkEmailContacts.length} emails`}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── TOP-UP MODAL ─────────────────────────────────────────────────── */}
+      {showTopUpModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(26,24,20,.5)", zIndex:400, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }} onClick={()=>setShowTopUpModal(false)}>
+          <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:32, width:"100%", maxWidth:440, boxShadow:`0 8px 40px ${T.shadowd}` }} onClick={e=>e.stopPropagation()}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20 }}>
+              <div>
+                <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.ink, marginBottom:4 }}>Buy a top-up pack</div>
+                <div style={{ fontSize:13, color:T.inkm }}>Credits added to your account immediately</div>
+              </div>
+              <button onClick={()=>setShowTopUpModal(false)} style={{ background:"none", border:"none", fontSize:20, color:T.inkm, cursor:"pointer" }}>×</button>
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:20 }}>
+              {TOPUP_PACKS.map(pack => (
+                <div key={pack.id} style={{ border:`1.5px solid ${T.border}`, borderRadius:8, padding:"16px 12px", textAlign:"center" }}>
+                  <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:28, color:T.ink, marginBottom:2 }}>{pack.priceStr}</div>
+                  <div style={{ fontSize:12, fontWeight:600, color:T.inkl, marginBottom:8 }}>{pack.label}</div>
+                  <div style={{ fontSize:11, color:T.inkm, marginBottom:12, lineHeight:1.6 }}>
+                    +{pack.reveals} reveals<br/>+{pack.searches} searches
+                  </div>
+                  <div style={{ fontSize:10, color:T.inkmut, marginBottom:10 }}>
+                    ${(pack.price/pack.reveals).toFixed(2)}/reveal
+                  </div>
+                  <button onClick={()=>applyTopUp(pack)} disabled={topUpLoading===pack.id} style={{ width:"100%", padding:"8px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:12, cursor:topUpLoading===pack.id?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", opacity:topUpLoading===pack.id?.6:1 }}>
+                    {topUpLoading===pack.id ? "Processing…" : "Buy now"}
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ background:T.paper, border:`1px solid ${T.border}`, borderRadius:5, padding:"10px 14px", fontSize:11, color:T.inkm, lineHeight:1.6 }}>
+              <strong>Current balance:</strong> {revealsTotal - revealsUsed} reveals · {searchesTotal - searchesUsed} searches remaining this month.<br/>
+              Top-up credits are added on top of your existing monthly allowance and reset with your next billing cycle.
             </div>
           </div>
         </div>
