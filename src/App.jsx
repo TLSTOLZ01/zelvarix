@@ -262,18 +262,18 @@ const PLANS = [
   },
   {
     id:"pro", name:"Pro", tagline:"For growing sales teams",
-    monthlyPrice:99, yearlyPrice:74, credits:50, maxSeats:10,
+    monthlyPrice:99, yearlyPrice:74, credits:50, maxSeats:5,
     searches:50, resultsPerSearch:5,
     badge:"Most Popular", highlight:true,
-    features:["50 shared reveals/month","50 searches/month (5 results each)","All search filters","CSV export (bulk & selective)","Full AI panel — ice breakers, scoring, emails","Bulk AI email generator (up to 10 at once)","Unlimited lists","Team management & roles","Priority support"],
+    features:["50 shared reveals/month","50 searches/month (5 results each)","Up to 5 team seats included","All search filters","CSV export (bulk & selective)","Full AI panel — ice breakers, scoring, emails","Bulk AI email generator (up to 10 at once)","Unlimited lists","Team management & roles","Priority support"],
     missing:["Custom reveal pools per seat","Dedicated account manager","SSO / SAML"],
   },
   {
     id:"team", name:"Team", tagline:"For scaling revenue orgs",
-    monthlyPrice:null, yearlyPrice:249, credits:100, maxSeats:50,
+    monthlyPrice:null, yearlyPrice:249, credits:100, maxSeats:15,
     searches:80, resultsPerSearch:10, annualOnly:true,
     badge:"Best Value", highlight:false,
-    features:["100 shared reveals/month","80 searches/month (10 results each)","Everything in Pro","Custom reveal pools per seat","Buyer intent signals","Job change tracking","Chrome extension","API access (full)","Zapier integration","Dedicated account manager","SSO / SAML","SLA-backed uptime"],
+    features:["100 shared reveals/month","80 searches/month (10 results each)","Up to 15 team seats included","Everything in Pro","Custom reveal pools per seat","Buyer intent signals","Job change tracking","Chrome extension","API access (full)","Zapier integration","Dedicated account manager","SSO / SAML","SLA-backed uptime"],
     missing:[],
   },
   {
@@ -296,7 +296,7 @@ const FAQS = [
   { q:"What is a reveal?", a:"A reveal is when you click to see a contact's verified email and phone number. Browsing search results is always free — you only spend a reveal when you want the actual contact details." },
   { q:"What is a search?", a:"A search is one query to our contact database. Each search returns 3–10 results depending on your plan. Reveals come from those results — you choose which contacts are worth revealing." },
   { q:"Do unused reveals roll over?", a:"Reveals and searches reset monthly on your billing date. They do not roll over, so use them each month for maximum value." },
-  { q:"Can I change plans anytime?", a:"Yes for Starter and Pro — upgrade or downgrade anytime, no annual commitment required. The Team plan is annual-only and billed as $249/seat/month × 12 months. Downgrades from Team take effect at the end of your annual term." },
+  { q:"Can I change plans anytime?", a:"Yes for Starter and Pro — upgrade or downgrade anytime with no annual commitment. The Team plan is annual-only, billed at $249/mo x 12 months ($2,988/yr). Downgrades from Team take effect at the end of your annual term." },
   { q:"Is there a free trial?", a:"Every paid plan starts with a 7-day free trial — no credit card required. Full access to all features during the trial." },
   { q:"How does team billing work?", a:"Pro and Team plans are billed per seat per month. Reveals are shared across the team as a single pool, managed by your Admin." },
   { q:"What happens if we run out of reveals?", a:"You'll see a notification when reveals run low. Once exhausted, contact details are hidden until your monthly reset. Upgrade anytime for immediate access to more reveals." },
@@ -1090,15 +1090,15 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                     <>
                       <div style={{ display:"flex", alignItems:"baseline", gap:3 }}>
                         <span style={{ fontFamily:"'DM Mono',monospace", fontSize:36, fontWeight:500, color:T.ink, lineHeight:1 }}>${plan.yearlyPrice}</span>
-                        <span style={{ fontSize:12, color:T.inkm }}>/seat/mo</span>
+                        <span style={{ fontSize:12, color:T.inkm }}>/mo</span>
                       </div>
-                      <div style={{ fontSize:11, color:T.green, marginTop:3, fontWeight:600 }}>Billed annually (${plan.yearlyPrice * 12}/yr) · No monthly option</div>
+                      <div style={{ fontSize:11, color:T.green, marginTop:3, fontWeight:600 }}>Billed annually (${plan.yearlyPrice * 12}/yr · up to {plan.maxSeats} seats) · No monthly option</div>
                     </>
                   ) : price ? (
                     <>
                       <div style={{ display:"flex", alignItems:"baseline", gap:3 }}>
                         <span style={{ fontFamily:"'DM Mono',monospace", fontSize:36, fontWeight:500, color:plan.highlight?"#fff":T.ink, lineHeight:1 }}>${price}</span>
-                        <span style={{ fontSize:12, color:plan.highlight?"rgba(255,255,255,.4)":T.inkm }}>/seat/mo</span>
+                        <span style={{ fontSize:12, color:plan.highlight?"rgba(255,255,255,.4)":T.inkm }}>/mo</span>
                       </div>
                       {pricingYearly && plan.monthlyPrice && <div style={{ fontSize:11, color:T.green, marginTop:3, fontWeight:500 }}>Save ${(plan.monthlyPrice-plan.yearlyPrice)*12}/yr</div>}
                     </>
@@ -1107,7 +1107,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                   )}
                   <div style={{ display:"flex", gap:6, marginTop:10, flexWrap:"wrap" }}>
                     <span style={{ fontSize:11, color:plan.highlight?"rgba(255,255,255,.55)":T.inkm, background:plan.highlight?"rgba(255,255,255,.08)":T.paper, border:`1px solid ${plan.highlight?"rgba(255,255,255,.12)":T.border}`, padding:"2px 7px", borderRadius:3 }}>
-                      {plan.maxSeats ? `${plan.maxSeats} seat${plan.maxSeats>1?"s":""}` : "Unlimited seats"}
+                      {plan.maxSeats ? `Up to ${plan.maxSeats} seat${plan.maxSeats>1?"s":""}` : "Unlimited seats"}
                     </span>
                     <span style={{ fontSize:11, color:plan.highlight?"rgba(255,255,255,.55)":T.inkm, background:plan.highlight?"rgba(255,255,255,.08)":T.paper, border:`1px solid ${plan.highlight?"rgba(255,255,255,.12)":T.border}`, padding:"2px 7px", borderRadius:3 }}>
                       {plan.credits ? `${plan.credits} reveals/mo` : "Unlimited reveals"}
@@ -2303,7 +2303,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                   <div style={{ height:4, background:T.paperd, borderRadius:2, overflow:"hidden", marginBottom:8 }}>
                     <div style={{ height:"100%", width:`${Math.round(activeBilling.seats.used/activeBilling.seats.total*100)}%`, background:T.green, borderRadius:2 }} />
                   </div>
-                  <div style={{ fontSize:11, color:T.inkmut }}>${activeBilling.seats.pricePerSeat}/seat/mo</div>
+                  <div style={{ fontSize:11, color:T.inkmut }}>Flat rate — {activeBilling.seats.total} seats included</div>
                 </div>
                 {/* Credits */}
                 <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, padding:"14px 18px", flex:1 }}>
