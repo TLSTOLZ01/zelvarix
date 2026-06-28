@@ -270,9 +270,9 @@ const PLANS = [
   },
   {
     id:"team", name:"Team", tagline:"For scaling revenue orgs",
-    monthlyPrice:249, yearlyPrice:187, credits:100, maxSeats:50,
-    searches:80, resultsPerSearch:10,
-    badge:null, highlight:false,
+    monthlyPrice:null, yearlyPrice:249, credits:100, maxSeats:50,
+    searches:80, resultsPerSearch:10, annualOnly:true,
+    badge:"Best Value", highlight:false,
     features:["100 shared reveals/month","80 searches/month (10 results each)","Everything in Pro","Custom reveal pools per seat","Buyer intent signals","Job change tracking","Chrome extension","API access (full)","Zapier integration","Dedicated account manager","SSO / SAML","SLA-backed uptime"],
     missing:[],
   },
@@ -296,7 +296,7 @@ const FAQS = [
   { q:"What is a reveal?", a:"A reveal is when you click to see a contact's verified email and phone number. Browsing search results is always free — you only spend a reveal when you want the actual contact details." },
   { q:"What is a search?", a:"A search is one query to our contact database. Each search returns 3–10 results depending on your plan. Reveals come from those results — you choose which contacts are worth revealing." },
   { q:"Do unused reveals roll over?", a:"Reveals and searches reset monthly on your billing date. They do not roll over, so use them each month for maximum value." },
-  { q:"Can I change plans anytime?", a:"Yes. Upgrade or downgrade at any time. Upgrades are prorated immediately; downgrades take effect at the next billing cycle." },
+  { q:"Can I change plans anytime?", a:"Yes for Starter and Pro — upgrade or downgrade anytime, no annual commitment required. The Team plan is annual-only and billed as $249/seat/month × 12 months. Downgrades from Team take effect at the end of your annual term." },
   { q:"Is there a free trial?", a:"Every paid plan starts with a 7-day free trial — no credit card required. Full access to all features during the trial." },
   { q:"How does team billing work?", a:"Pro and Team plans are billed per seat per month. Reveals are shared across the team as a single pool, managed by your Admin." },
   { q:"What happens if we run out of reveals?", a:"You'll see a notification when reveals run low. Once exhausted, contact details are hidden until your monthly reset. Upgrade anytime for immediate access to more reveals." },
@@ -496,7 +496,7 @@ export default function App() {
     plan: activePlan.name,
     seats: { used:5, total: activePlan.maxSeats || 10, pricePerSeat: activePlan.monthlyPrice || 79 },
     credits: { used:revealsUsed || 0, total: revealsTotal || activePlan.credits || 20, resetDate:"Next billing date" },
-    nextBill: { date:"Jun 1, 2026", amount: activePlan.monthlyPrice ? activePlan.monthlyPrice * 5 : 790 },
+    nextBill: { date:"Jun 1, 2026", amount: activePlan.annualOnly ? (activePlan.yearlyPrice||249) * 5 : activePlan.monthlyPrice ? activePlan.monthlyPrice * 5 : 790 },
     history: MOCK_BILLING.history,
   };
   const [onboardStep, setOnboardStep] = useState(0);
@@ -1079,20 +1079,28 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
             const isSelected = selectedPlan === plan.id;
             return (
               <div key={plan.id} style={{ background: plan.highlight ? T.ink : plan.id==="starter" ? T.paper : plan.id==="team" ? T.greenl : T.amberl, border:`1.5px solid ${isSelected ? T.green : plan.highlight ? T.ink : plan.id==="starter" ? T.border : plan.id==="team" ? T.greenb : T.amberb}`, borderRadius:8, padding:"26px 22px", display:"flex", flexDirection:"column", position:"relative", boxShadow: plan.highlight ? `0 8px 40px rgba(26,24,20,.18)` : isSelected ? `0 0 0 2px ${T.greenb}` : "0 1px 4px rgba(26,24,20,.05)" }}>
-                {plan.badge && <div style={{ position:"absolute", top:-11, left:"50%", transform:"translateX(-50%)", background:T.green, color:"#fff", fontSize:10, fontWeight:700, padding:"3px 12px", borderRadius:20, letterSpacing:1, textTransform:"uppercase", whiteSpace:"nowrap" }}>{plan.badge}</div>}
+                {plan.badge && <div style={{ position:"absolute", top:-11, left:"50%", transform:"translateX(-50%)", background:plan.annualOnly?T.amber:T.green, color:"#fff", fontSize:10, fontWeight:700, padding:"3px 12px", borderRadius:20, letterSpacing:1, textTransform:"uppercase", whiteSpace:"nowrap" }}>{plan.badge}</div>}
                 {isSelected && <div style={{ position:"absolute", top:-11, right:12, background:T.greenm, color:"#fff", fontSize:10, fontWeight:700, padding:"3px 10px", borderRadius:20, letterSpacing:.8, textTransform:"uppercase" }}>Selected ✓</div>}
                 <div style={{ marginBottom:18 }}>
                   <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:21, color:plan.highlight?"#fff":T.ink, marginBottom:3 }}>{plan.name}</div>
                   <div style={{ fontSize:12, color:plan.highlight?"rgba(255,255,255,.5)":T.inkm }}>{plan.tagline}</div>
                 </div>
                 <div style={{ marginBottom:18, borderBottom:`1px solid ${plan.highlight?"rgba(255,255,255,.1)":T.border}`, paddingBottom:18 }}>
-                  {price ? (
+                  {plan.annualOnly ? (
+                    <>
+                      <div style={{ display:"flex", alignItems:"baseline", gap:3 }}>
+                        <span style={{ fontFamily:"'DM Mono',monospace", fontSize:36, fontWeight:500, color:T.ink, lineHeight:1 }}>${plan.yearlyPrice}</span>
+                        <span style={{ fontSize:12, color:T.inkm }}>/seat/mo</span>
+                      </div>
+                      <div style={{ fontSize:11, color:T.green, marginTop:3, fontWeight:600 }}>Billed annually (${plan.yearlyPrice * 12}/yr) · No monthly option</div>
+                    </>
+                  ) : price ? (
                     <>
                       <div style={{ display:"flex", alignItems:"baseline", gap:3 }}>
                         <span style={{ fontFamily:"'DM Mono',monospace", fontSize:36, fontWeight:500, color:plan.highlight?"#fff":T.ink, lineHeight:1 }}>${price}</span>
                         <span style={{ fontSize:12, color:plan.highlight?"rgba(255,255,255,.4)":T.inkm }}>/seat/mo</span>
                       </div>
-                      {pricingYearly && <div style={{ fontSize:11, color:T.green, marginTop:3, fontWeight:500 }}>Save ${(plan.monthlyPrice-plan.yearlyPrice)*12}/yr</div>}
+                      {pricingYearly && plan.monthlyPrice && <div style={{ fontSize:11, color:T.green, marginTop:3, fontWeight:500 }}>Save ${(plan.monthlyPrice-plan.yearlyPrice)*12}/yr</div>}
                     </>
                   ) : (
                     <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:32, color:plan.highlight?"#fff":T.ink, lineHeight:1 }}>Custom</div>
@@ -1109,7 +1117,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                     </span>
                   </div>
                 </div>
-                <button onClick={()=>choosePlan(plan)} style={btnStyle(plan)}>{plan.id==="enterprise" ? "Talk to sales" : "Start free trial"}</button>
+                <button onClick={()=>choosePlan(plan)} style={btnStyle(plan)}>{plan.id==="enterprise" ? "Talk to sales" : plan.annualOnly ? "Start annual plan →" : "Start free trial"}</button>
                 <div style={{ marginTop:18, flex:1 }}>
                   {plan.features.map(f => (
                     <div key={f} style={{ display:"flex", alignItems:"flex-start", gap:7, marginBottom:8 }}>
