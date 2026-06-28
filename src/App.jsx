@@ -254,42 +254,47 @@ const MOCK_BILLING = {
 const PLANS = [
   {
     id:"starter", name:"Starter", tagline:"For solo reps and freelancers",
-    monthlyPrice:39, yearlyPrice:29, credits:200, maxSeats:1,
+    monthlyPrice:59, yearlyPrice:44, credits:20, maxSeats:1,
+    searches:30, resultsPerSearch:3,
     badge:null, highlight:false,
-    features:["200 contact reveals/month","Basic search & filters","CSV export","Email verification","AI ice breakers","My Lists (up to 5)","Email support"],
-    missing:["Team seats","Bulk enrichment","CRM integrations","Priority support","API access"],
+    features:["20 contact reveals/month","30 searches/month (3 results each)","Plain-English industry search","Company name & keyword filters","AI ice breakers & email drafts","My Lists (up to 5)","CSV export","Email support"],
+    missing:["Team seats","Bulk email generator","Priority support","API access"],
   },
   {
     id:"pro", name:"Pro", tagline:"For growing sales teams",
-    monthlyPrice:79, yearlyPrice:59, credits:1000, maxSeats:10,
+    monthlyPrice:99, yearlyPrice:74, credits:50, maxSeats:10,
+    searches:50, resultsPerSearch:5,
     badge:"Most Popular", highlight:true,
-    features:["1,000 shared credits/month","All search filters","CSV export (bulk & selective)","Real-time email + phone verification","Full AI panel","Unlimited lists","Team management & roles","HubSpot & Salesforce sync","Priority support"],
-    missing:["Custom credit pools per seat","Dedicated account manager","SSO / SAML"],
+    features:["50 shared reveals/month","50 searches/month (5 results each)","All search filters","CSV export (bulk & selective)","Full AI panel — ice breakers, scoring, emails","Bulk AI email generator (up to 10 at once)","Unlimited lists","Team management & roles","Priority support"],
+    missing:["Custom reveal pools per seat","Dedicated account manager","SSO / SAML"],
   },
   {
     id:"team", name:"Team", tagline:"For scaling revenue orgs",
-    monthlyPrice:149, yearlyPrice:119, credits:5000, maxSeats:50,
+    monthlyPrice:249, yearlyPrice:187, credits:100, maxSeats:50,
+    searches:80, resultsPerSearch:10,
     badge:null, highlight:false,
-    features:["5,000 shared credits/month","Everything in Pro","Custom credit pools per seat","Buyer intent signals","Job change tracking","Chrome extension","API access (full)","Zapier integration","Dedicated account manager","SSO / SAML","SLA-backed uptime"],
+    features:["100 shared reveals/month","80 searches/month (10 results each)","Everything in Pro","Custom reveal pools per seat","Buyer intent signals","Job change tracking","Chrome extension","API access (full)","Zapier integration","Dedicated account manager","SSO / SAML","SLA-backed uptime"],
     missing:[],
   },
   {
     id:"enterprise", name:"Enterprise", tagline:"For large orgs with custom needs",
     monthlyPrice:null, yearlyPrice:null, credits:null, maxSeats:null,
+    searches:null, resultsPerSearch:null,
     badge:null, highlight:false,
-    features:["Unlimited credits & seats","Everything in Team","Custom data SLA","Org chart mapping","Custom AI models","White-label option","On-premise deployment","24/7 phone support","Custom contract & invoicing"],
+    features:["Unlimited reveals & seats","Everything in Team","Custom data SLA","Org chart mapping","Custom AI models","White-label option","On-premise deployment","24/7 phone support","Custom contract & invoicing"],
     missing:[],
   },
 ];
 
 const FAQS = [
-  { q:"What is a credit?", a:"One credit = one contact reveal (verified email or phone). Searching and filtering is always free — you only spend a credit when you reveal contact details." },
-  { q:"Do unused credits roll over?", a:"Credits reset monthly on your billing date. On Team and Enterprise plans you can purchase additional top-ups at any time." },
+  { q:"What is a reveal?", a:"A reveal is when you click to see a contact's verified email and phone number. Browsing search results is always free — you only spend a reveal when you want the actual contact details." },
+  { q:"What is a search?", a:"A search is one query to our contact database. Each search returns 3–10 results depending on your plan. Reveals come from those results — you choose which contacts are worth revealing." },
+  { q:"Do unused reveals roll over?", a:"Reveals and searches reset monthly on your billing date. They do not roll over, so use them each month for maximum value." },
   { q:"Can I change plans anytime?", a:"Yes. Upgrade or downgrade at any time. Upgrades are prorated immediately; downgrades take effect at the next billing cycle." },
   { q:"Is there a free trial?", a:"Every paid plan starts with a 7-day free trial — no credit card required. Full access to all features during the trial." },
-  { q:"How does team billing work?", a:"Pro and Team plans are billed per seat per month. Credits are shared across the team and managed by your Admin." },
-  { q:"What happens if we go over our credit limit?", a:"You'll receive an email at 80% usage. Once exhausted you can purchase top-up credits ($0.10/credit) or upgrade. Contact reveals pause — your data and lists are never affected." },
-  { q:"Do you offer nonprofit or startup discounts?", a:"Yes. Verified nonprofits receive 40% off. Seed-stage startups (under $1M ARR) receive 30% off for the first year." },
+  { q:"How does team billing work?", a:"Pro and Team plans are billed per seat per month. Reveals are shared across the team as a single pool, managed by your Admin." },
+  { q:"What happens if we run out of reveals?", a:"You'll see a notification when reveals run low. Once exhausted, contact details are hidden until your monthly reset. Upgrade anytime for immediate access to more reveals." },
+  { q:"Do you offer nonprofit or startup discounts?", a:"Yes. Verified nonprofits receive 40% off. Seed-stage startups (under $1M ARR) receive 30% off for the first year. Email support@zelvarix.ai." },
 ];
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
@@ -482,7 +487,7 @@ export default function App() {
   const activeBilling = {
     plan: activePlan.name,
     seats: { used:5, total: activePlan.maxSeats || 10, pricePerSeat: activePlan.monthlyPrice || 79 },
-    credits: { used:387, total: activePlan.credits || 1000, resetDate:"Jun 1, 2026" },
+    credits: { used:revealsUsed || 0, total: revealsTotal || activePlan.credits || 20, resetDate:"Next billing date" },
     nextBill: { date:"Jun 1, 2026", amount: activePlan.monthlyPrice ? activePlan.monthlyPrice * 5 : 790 },
     history: MOCK_BILLING.history,
   };
@@ -1061,12 +1066,15 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                   ) : (
                     <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:32, color:plan.highlight?"#fff":T.ink, lineHeight:1 }}>Custom</div>
                   )}
-                  <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
+                  <div style={{ display:"flex", gap:6, marginTop:10, flexWrap:"wrap" }}>
                     <span style={{ fontSize:11, color:plan.highlight?"rgba(255,255,255,.55)":T.inkm, background:plan.highlight?"rgba(255,255,255,.08)":T.paper, border:`1px solid ${plan.highlight?"rgba(255,255,255,.12)":T.border}`, padding:"2px 7px", borderRadius:3 }}>
                       {plan.maxSeats ? `${plan.maxSeats} seat${plan.maxSeats>1?"s":""}` : "Unlimited seats"}
                     </span>
                     <span style={{ fontSize:11, color:plan.highlight?"rgba(255,255,255,.55)":T.inkm, background:plan.highlight?"rgba(255,255,255,.08)":T.paper, border:`1px solid ${plan.highlight?"rgba(255,255,255,.12)":T.border}`, padding:"2px 7px", borderRadius:3 }}>
-                      {plan.credits ? `${plan.credits.toLocaleString()} credits/mo` : "Unlimited credits"}
+                      {plan.credits ? `${plan.credits} reveals/mo` : "Unlimited reveals"}
+                    </span>
+                    <span style={{ fontSize:11, color:plan.highlight?"rgba(255,255,255,.55)":T.inkm, background:plan.highlight?"rgba(255,255,255,.08)":T.paper, border:`1px solid ${plan.highlight?"rgba(255,255,255,.12)":T.border}`, padding:"2px 7px", borderRadius:3 }}>
+                      {plan.searches ? `${plan.searches} searches/mo` : "Unlimited searches"}
                     </span>
                   </div>
                 </div>
@@ -1094,14 +1102,14 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
         <section style={{ background:"#fff", borderTop:`1px solid ${T.border}`, borderBottom:`1px solid ${T.border}`, padding:"52px 24px" }}>
           <div style={{ maxWidth:860, margin:"0 auto" }}>
             <div style={{ textAlign:"center", marginBottom:36 }}>
-              <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:32, color:T.ink, letterSpacing:-.5, marginBottom:6 }}>How credits work</div>
-              <div style={{ fontSize:14, color:T.inkm }}>Transparent, simple, never surprising.</div>
+              <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:32, color:T.ink, letterSpacing:-.5, marginBottom:6 }}>How reveals work</div>
+              <div style={{ fontSize:14, color:T.inkm }}>Browse free. Reveal what you need. Simple.</div>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:28 }}>
               {[
-                { n:"01", title:"Search freely",   body:"Filter across 1.3B+ contacts by industry, seniority, company size, and department. Browsing results never costs a credit." },
-                { n:"02", title:"Reveal to spend", body:"One credit is used when you reveal a verified email or direct phone number. You control exactly what you spend." },
-                { n:"03", title:"Team pooling",    body:"Credits are shared across your team on Pro and Team plans. Admins can set per-seat limits to keep usage balanced." },
+                { n:"01", title:"Search freely",   body:"Filter across 1.3B+ verified contacts by industry, company, seniority, location, and department. Every search result shows name, title, company, and location — completely free." },
+                { n:"02", title:"Reveal to connect", body:"Click Reveal on any contact to see their verified email and phone number. One reveal credit per contact. You choose exactly who is worth reaching." },
+                { n:"03", title:"Team pooling",    body:"Reveals are shared across your team on Pro and Team plans. Admins can monitor usage in the Settings tab to keep the pool balanced." },
               ].map(item => (
                 <div key={item.n} style={{ borderTop:`2px solid ${T.green}`, paddingTop:18 }}>
                   <div style={{ fontFamily:"'DM Mono',monospace", fontSize:11, color:T.inkmut, marginBottom:8, letterSpacing:1 }}>{item.n}</div>
