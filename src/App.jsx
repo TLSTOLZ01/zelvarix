@@ -241,17 +241,6 @@ const MOCK_TEAM = [
   { id:6, name:"Drew Patel",   email:"drew.patel@company.com",   role:"rep",     status:"invited", joined:"—",        lastActive:"—",          avatar:"DP", searches:0,   exports:0  },
 ];
 
-const MOCK_BILLING = {
-  plan:"Pro Team", seats:{ used:5, total:10, pricePerSeat:79 },
-  credits:{ used:387, total:1000, resetDate:"Jun 1, 2026" },
-  nextBill:{ date:"Jun 1, 2026", amount:790 },
-  history:[
-    { date:"May 1, 2026", amount:790, status:"paid" },
-    { date:"Apr 1, 2026", amount:790, status:"paid" },
-    { date:"Mar 1, 2026", amount:553, status:"paid" },
-  ]
-};
-
 const PLANS = [
   {
     id:"starter", name:"Starter", tagline:"For solo reps and freelancers",
@@ -504,10 +493,11 @@ export default function App() {
   const activePlan   = PLANS.find(p => p.id === selectedPlan) || PLANS[1]; // default Pro
   const activeBilling = {
     plan: activePlan.name,
-    seats: { used:5, total: activePlan.maxSeats || 10, pricePerSeat: activePlan.monthlyPrice || 79 },
+    // Zelvarix pricing is flat per team, not per seat — seat count reflects actual team size, price is the flat plan price
+    seats: { used: teamMembers.filter(m=>m.status==="active").length || 1, total: activePlan.maxSeats || 10, flatPrice: activePlan.annualOnly ? (activePlan.yearlyPrice||0) : (activePlan.monthlyPrice||0) },
     credits: { used:revealsUsed || 0, total: revealsTotal || activePlan.credits || 20, resetDate:"Next billing date" },
-    nextBill: { date:"Jun 1, 2026", amount: activePlan.annualOnly ? (activePlan.yearlyPrice||249) * 5 : activePlan.monthlyPrice ? activePlan.monthlyPrice * 5 : 790 },
-    history: MOCK_BILLING.history,
+    nextBill: { date: sbTeam?.next_billing_date || "—", amount: activePlan.annualOnly ? (activePlan.yearlyPrice||0) : (activePlan.monthlyPrice||0) },
+    history: [], // Real billing history is not yet wired up to Stripe invoices — showing empty rather than fake data
   };
   const [onboardStep, setOnboardStep] = useState(0);
   const [onboardData, setOnboardData] = useState({ name:"", company:"", role:"", goal:"", bookingLink:"" });
@@ -2389,7 +2379,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                   <div style={{ height:4, background:T.paperd, borderRadius:2, overflow:"hidden", marginBottom:8 }}>
                     <div style={{ height:"100%", width:`${Math.round(activeBilling.seats.used/activeBilling.seats.total*100)}%`, background:T.green, borderRadius:2 }} />
                   </div>
-                  <div style={{ fontSize:11, color:T.inkmut }}>${activeBilling.seats.pricePerSeat}/seat/mo</div>
+                  <div style={{ fontSize:11, color:T.inkmut }}>${activeBilling.seats.flatPrice}/mo flat — not billed per seat</div>
                 </div>
                 {/* Credits */}
                 <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, padding:"14px 18px", flex:1 }}>
@@ -2407,6 +2397,9 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
             {/* History */}
             <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, overflow:"hidden" }}>
               <div style={{ padding:"12px 18px", borderBottom:`1px solid ${T.border}`, fontSize:13, fontWeight:500, color:T.ink }}>Billing history</div>
+              {activeBilling.history.length === 0 && (
+                <div style={{ padding:"18px", fontSize:13, color:T.inkm }}>No billing history yet. Invoices will appear here after your first payment.</div>
+              )}
               {activeBilling.history.map((h,i)=>(
                 <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 18px", borderBottom:i<activeBilling.history.length-1?`1px solid ${T.border}`:"none" }}>
                   <div style={{ fontSize:13, color:T.inkl }}>{h.date}</div>
