@@ -9,6 +9,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 
 // ─── APOLLO / AI CONFIG ──────────────────────────────────────────────────────
 const ANTHROPIC_MODEL = "claude-sonnet-4-6";
+const STRIPE_PUB_KEY   = "pk_test_51Tp9If4J6FrtuXSsfpSZJNnN5fZKLO7sy0V7XI8uPJlJGsuSvtTcuqA7KVoMW6tGbHdWWIPAkrHcHtEmpUxodtWr00AJ8iZyED";
 
 // ── ANALYTICS & MONITORING ───────────────────────────────────────────────────
 const GA_MEASUREMENT_ID = 'G-L19SG7QRWX';
@@ -285,6 +286,15 @@ const PLANS = [
     missing:[],
   },
 ];
+
+const STRIPE_PLAN_IDS = {
+  starter:      'price_1Tp9RC4J6FrtuXSshunrnSps',
+  pro:          'price_1Tp9Rp4J6FrtuXSsZ4bzJSLL',
+  team:         'price_1Tp9aH4J6FrtuXSshgeFlnj5',
+  topup_small:  'price_1Tp9lv4J6FrtuXSspfPkDdt8',
+  topup_medium: 'price_1Tp9oa4J6FrtuXSsjhtrq0fg',
+  topup_large:  'price_1Tp9pF4J6FrtuXSs6eVdqaFS',
+};
 
 const TOPUP_PACKS = [
   { id:"small",  label:"Small Pack",  reveals:10, searches:10, price:9,  priceStr:"$9" },
@@ -705,24 +715,26 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
   }
 
   async function applyTopUp(pack) {
-    // TODO: Wire to Stripe one-time payment next week
-    // For now, simulate purchase and apply credits directly
+    if (!currentUser) { setAppView("auth"); return; }
     setTopUpLoading(pack.id);
     try {
-      const newRevealsTotal = revealsTotal + pack.reveals;
-      const newSearchesTotal = searchesTotal + pack.searches;
-      setRevealsTotal(newRevealsTotal);
-      setSearchesTotal(newSearchesTotal);
-      if (sbTeam) {
-        await sb.from("teams").update({
-          reveals_total: newRevealsTotal,
-          searches_total: newSearchesTotal,
-        }).eq("id", sbTeam.id);
-      }
-      setShowTopUpModal(false);
-      setShowUpgradePrompt(false);
-    } catch(e) {
-      console.warn("Top-up error:", e);
+      const packId = pack.id === 'small' ? 'topup_small' : pack.id === 'medium' ? 'topup_medium' : 'topup_large';
+      const res = await fetch("/api/stripe-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planId: packId,
+          userId: currentUser.id,
+          teamId: sbTeam?.id || null,
+          email: currentUser.email,
+        }),
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+      else alert("Error starting checkout. Please try again.");
+    } catch(err) {
+      console.error("Top-up error:", err);
+      alert("Error starting checkout. Please try again.");
     }
     setTopUpLoading(null);
   }
@@ -841,6 +853,21 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
 
   // ── Auto-logout after 15 minutes of inactivity ──────────────────────────
   const inactivityRef = useRef(null);
+
+  // ── Handle Stripe return ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get("payment");
+    const plan = params.get("plan");
+    if (payment === "success" && plan) {
+      window.history.replaceState({}, "", window.location.pathname);
+      setTimeout(() => {
+        alert("Zelvarix " + plan.charAt(0).toUpperCase() + plan.slice(1) + " is now active! Your 7-day free trial has started.");
+      }, 1000);
+    } else if (payment === "cancelled") {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     if (supportEndRef.current) {
@@ -1057,10 +1084,36 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
       borderRadius:5, color: plan.highlight||plan.id==="enterprise" ? "#fff" : T.ink,
       fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:"'DM Sans',sans-serif",
     });
-    function choosePlan(plan) {
-      setSelectedPlan(plan.id);
-      if (plan.id==="enterprise") { alert("Our sales team will be in touch! For now, enjoy full Team access."); setSelectedPlan("team"); }
-      // If user already logged in, go straight to billing; else go to auth
+    async function choosePlan(plan) {
+      if (plan.id === "enterprise") {
+        window.location.href = "mailto:support@zelvarix.ai?subject=Enterprise Plan Inquiry";
+        return;
+      }
+      if (!currentUser) {
+        setAppView("auth");
+        return;
+      }
+      const priceId = STRIPE_PLAN_IDS[plan.id];
+      if (!priceId) return;
+      try {
+        const res = await fetch("/api/stripe-checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            planId: plan.id,
+            userId: currentUser.id,
+            teamId: sbTeam?.id || null,
+            email: currentUser.email,
+          }),
+        });
+        const data = await res.json();
+        if (data.url) window.location.href = data.url;
+        else alert("Error starting checkout. Please try again.");
+      } catch (err) {
+        console.error("Checkout error:", err);
+        alert("Error starting checkout. Please try again.");
+      }
+         // If user already logged in, go straight to billing; else go to auth
       if (currentUser) { setAppView("app"); setView("billing"); }
       else { setAppView("auth"); setAuthMode("signup"); }
     }
