@@ -491,6 +491,16 @@ export default function App() {
   const [inviteRole, setInviteRole]   = useState("rep");
   // Dynamic billing derived from selected plan
   const activePlan   = PLANS.find(p => p.id === selectedPlan) || PLANS[1]; // default Pro
+  const trialDaysLeft = (() => {
+    if (!sbTeam?.trial_end) return null;
+    const end = new Date(sbTeam.trial_end);
+    if (isNaN(end.getTime())) return null;
+    const now = new Date();
+    const diffMs = end.getTime() - now.getTime();
+    if (diffMs < 0) return null; // trial already ended — don't show a stale/negative count
+    return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  })();
+
   const activeBilling = {
     plan: activePlan.name,
     // Zelvarix pricing is flat per team, not per seat — seat count reflects actual team size, price is the flat plan price
@@ -852,7 +862,14 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
     if (payment === "success" && plan) {
       window.history.replaceState({}, "", window.location.pathname);
       setTimeout(() => {
-        alert("Zelvarix " + plan.charAt(0).toUpperCase() + plan.slice(1) + " is now active! Your 7-day free trial has started.");
+        if (plan.startsWith("topup_")) {
+          const packId = plan.replace("topup_", "");
+          const pack = TOPUP_PACKS.find(p => p.id === packId);
+          const revealsAdded = pack ? pack.reveals : "";
+          alert(`Your top-up purchase was successful!${revealsAdded ? ` ${revealsAdded} reveals and ${pack.searches} searches` : " Your credits"} have been added to your account.`);
+        } else {
+          alert("Zelvarix " + plan.charAt(0).toUpperCase() + plan.slice(1) + " is now active! Your 7-day free trial has started.");
+        }
       }, 1000);
     } else if (payment === "cancelled") {
       window.history.replaceState({}, "", window.location.pathname);
@@ -1086,13 +1103,20 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
       const priceId = STRIPE_PLAN_IDS[plan.id];
       if (!priceId) return;
       try {
+        // Don't trust sbTeam React state here — it can lag behind a just-completed signup.
+        // Look up the real team_id directly so Stripe checkout always gets the correct teamId.
+        let realTeamId = sbTeam?.id || null;
+        if (!realTeamId) {
+          const { data: mem } = await sb.from("team_members").select("team_id").eq("user_id", currentUser.id).maybeSingle();
+          realTeamId = mem?.team_id || null;
+        }
         const res = await fetch("/api/stripe-checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             planId: plan.id,
             userId: currentUser.id,
-            teamId: sbTeam?.id || null,
+            teamId: realTeamId,
             email: currentUser.email,
           }),
         });
@@ -1752,6 +1776,17 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
         </div>
       </div>
 
+      {/* ── TRIAL COUNTDOWN BANNER ──────────────────────────────────────── */}
+      {trialDaysLeft !== null && trialDaysLeft >= 0 && !isDemo && (
+        <div style={{ background: trialDaysLeft <= 2 ? "#fdecea" : T.greenl, borderBottom:`1px solid ${trialDaysLeft <= 2 ? "#f5c6c0" : T.greenb}`, padding:"8px 24px", fontSize:12.5, color: trialDaysLeft <= 2 ? T.red : T.green, fontWeight:500, textAlign:"center" }}>
+          {trialDaysLeft === 0
+            ? "Your free trial ends today — upgrade now to keep uninterrupted access."
+            : `${trialDaysLeft} day${trialDaysLeft===1?"":"s"} left in your free trial.`}
+          {" "}
+          <button onClick={()=>{ setView("billing"); }} style={{ background:"none", border:"none", color:"inherit", textDecoration:"underline", cursor:"pointer", fontWeight:700, fontSize:"inherit", fontFamily:"'DM Sans',sans-serif", padding:0 }}>View billing</button>
+        </div>
+      )}
+
       {/* ── CONTENT ─────────────────────────────────────────────────────── */}
       <div style={{ display:"flex", minHeight:"calc(100vh - 52px)" }}>
 
@@ -2368,6 +2403,11 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                 <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:26, color:T.ink, marginBottom:4 }}>{activeBilling.plan}</div>
                 <div style={{ fontFamily:"'DM Mono',monospace", fontSize:28, color:T.green, marginBottom:4 }}>${activeBilling.nextBill.amount}<span style={{ fontSize:14, color:T.inkm, fontFamily:"'DM Sans',sans-serif" }}>/mo</span></div>
                 <div style={{ fontSize:12, color:T.inkm }}>Next billing: {activeBilling.nextBill.date}</div>
+                {trialDaysLeft !== null && trialDaysLeft >= 0 && (
+                  <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${T.border}`, fontSize:12, fontWeight:600, color: trialDaysLeft <= 2 ? T.red : T.amber }}>
+                    {trialDaysLeft === 0 ? "Trial ends today" : `${trialDaysLeft} day${trialDaysLeft===1?"":"s"} left in your free trial`}
+                  </div>
+                )}
               </div>
               <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
                 {/* Seats */}
