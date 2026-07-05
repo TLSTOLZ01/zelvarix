@@ -66,8 +66,17 @@ export default async function handler(req, res) {
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const subscription = event.data.object;
-        const { userId, teamId, planId } = subscription.metadata || {};
+        const { userId } = subscription.metadata || {};
+        let { teamId, planId } = subscription.metadata || {};
         if (!userId || !planId) break;
+ 
+        // Defensive fallback: if teamId is missing from metadata (e.g. a React state
+        // timing issue on signup), look up the user's real team instead of creating
+        // an orphaned duplicate team row.
+        if (!teamId) {
+          const { data: mem } = await supabase.from('team_members').select('team_id').eq('user_id', userId).maybeSingle();
+          teamId = mem?.team_id || null;
+        }
  
         const config = PLAN_CONFIG[planId];
         if (!config) break;
