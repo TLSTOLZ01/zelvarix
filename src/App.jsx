@@ -305,6 +305,7 @@ const FAQS = [
   { q:"Is there a free trial?", a:"Every paid plan starts with a 7-day free trial — no credit card required. Full access to all features during the trial." },
   { q:"How does team billing work?", a:"Pro and Team plans are billed per seat per month. Reveals are shared across the team as a single pool, managed by your Admin." },
   { q:"What happens if we run out of reveals?", a:"You'll see a notification when reveals run low. Once exhausted, contact details are hidden until your monthly reset. Upgrade anytime for immediate access to more reveals." },
+  { q:"What's the difference between Saved contacts and Lists?", a:"Starring a contact (★) adds it to your quick catch-all Saved contacts. Lists let you organize contacts into named groups — click the + button on any contact to add it to one or more lists, and manage them from the Lists tab." },
   { q:"Do you offer nonprofit or startup discounts?", a:"Yes. Verified nonprofits receive 40% off. Seed-stage startups (under $1M ARR) receive 30% off for the first year. Email support@zelvarix.ai." },
 ];
 
@@ -654,10 +655,12 @@ BOOKING LINK & CALENDLY SETUP:
 - If you do not have a booking link, you can skip that step during onboarding and add it later
 
 PIPELINE & LISTS:
-- Star (☆) any contact to save them to your pipeline
+- Star (☆) any contact to save them to your pipeline and to "Saved contacts" — a quick catch-all
 - Pipeline has 4 stages: New, Contacted, Qualified, Closed
 - Drag and drop contacts between stages
-- Lists let you organize saved contacts into named groups
+- Lists let you organize contacts into named groups (e.g. "Q3 Prospects"). Click the + button next to the star on any contact to open the list picker, check which list(s) to add them to, or create a new list right from that popover
+- Click into a list from the Lists tab to see everyone in it, with options to view AI insights or remove them from that list
+- A contact must be saved (starred) before it can be added to a list — clicking + on an unsaved contact saves it automatically first
 
 TEAM FEATURES:
 - Invite team members with different roles: Admin, Manager, Sales Rep, Viewer
@@ -670,9 +673,9 @@ BILLING:
 - Re-authentication required to cancel (security measure)
 
 COMMON ISSUES:
-- "Live search error": Usually means the PDL API credits are exhausted or the API key needs checking. Try again in a few minutes or contact support@zelvarix.ai
+- "Live search error": Usually means the contact database is temporarily unavailable. Try again in a few minutes or contact support@zelvarix.ai
 - "No results found": Try broader filters — remove industry or location restrictions
-- Industry search: Type at least 2 characters to see industry suggestions
+- Industry search: Type at least 2 characters to see industry suggestions, or press Enter to search your exact typed term even if it's not in the suggestions
 - Company keyword vs Company name: Company name searches for an exact company (e.g. "Chevron"). Company keyword does a broad match (e.g. "funeral" finds all funeral-related companies)
 - Reveals not working: Check your reveals remaining in Settings — if at 0, you need to upgrade
 - AI panel not generating: Check your internet connection and try regenerating
