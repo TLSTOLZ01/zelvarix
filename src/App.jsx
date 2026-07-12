@@ -148,6 +148,12 @@ function IndustrySearch({ value, onChange }) {
           value={query}
           onChange={e=>{ setQuery(e.target.value); setOpen(true); }}
           onFocus={()=>setOpen(true)}
+          onKeyDown={e=>{
+            if (e.key === "Enter" && query.trim().length > 0) {
+              e.preventDefault();
+              select(query.trim());
+            }
+          }}
           placeholder="Search industry…"
           style={{ fontSize:12, padding:"7px 10px" }}
         />
@@ -452,6 +458,10 @@ export default function App() {
   const [useLiveData, setUseLiveData]   = useState(false);
   const debounceRef                     = useRef(null);
   const [lists, setLists]             = useState([{ id:1, name:"Hot Prospects Q2", count:3 }, { id:2, name:"Enterprise Targets", count:12 }]);
+  const [listMemberships, setListMemberships] = useState({}); // { [listId]: Set(contactIds) }
+  const [listContactData, setListContactData] = useState({}); // { [listId]: [contact objects] } — for the list detail view
+  const [listPickerFor, setListPickerFor] = useState(null); // contact object currently showing the add-to-list popover, or null
+  const [openListDetail, setOpenListDetail] = useState(null); // list object currently being viewed in detail, or null
   const [teamMembers, setTeamMembers] = useState([{ id:1, name:"", email:"", role:"admin", status:"active", joined:"", lastActive:"Today", avatar:"", searches:0, exports:0 }]);
   const [activeUserId, setActiveUserId] = useState(1);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -551,6 +561,14 @@ export default function App() {
     }
     setPdlLoading(false);
   }, [filters, searchQuery, filters.naicsCode?.code]);
+
+  // Close the "add to list" popover when clicking anywhere else
+  useEffect(() => {
+    if (!listPickerFor) return;
+    const close = () => setListPickerFor(null);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [listPickerFor]);
 
   // Re-run PDL search when filters or query change while in live mode
   useEffect(() => {
@@ -760,6 +778,80 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
     }
   }
 
+  async function loadListMemberships(teamId) {
+    if (!teamId) return;
+    try {
+      const { data: teamLists } = await sb.from("lists").select("id").eq("team_id", teamId);
+      const listIds = (teamLists||[]).map(l => l.id);
+      if (listIds.length === 0) { setListMemberships({}); setListContactData({}); return; }
+      const { data: rows } = await sb.from("list_contacts").select("list_id, contact_id, saved_contacts(contact_data, apollo_id)").in("list_id", listIds);
+      if (!rows) return;
+      const memberships = {};
+      const contactData = {};
+      rows.forEach(r => {
+        const cd = r.saved_contacts?.contact_data;
+        const cid = cd?.id || r.saved_contacts?.apollo_id;
+        if (!cid) return;
+        if (!memberships[r.list_id]) memberships[r.list_id] = new Set();
+        memberships[r.list_id].add(cid);
+        if (!contactData[r.list_id]) contactData[r.list_id] = [];
+        if (cd) contactData[r.list_id].push(cd);
+      });
+      setListMemberships(memberships);
+      setListContactData(contactData);
+    } catch (e) { console.warn("Load list memberships error:", e.message); }
+  }
+
+  // Lists reference saved_contacts.id, so a contact must be saved before it can join a list.
+  // Creates the saved_contacts row if one doesn't already exist, and returns its id either way.
+  async function ensureSavedContactId(contact) {
+    if (savedRowIds[contact.id]) return savedRowIds[contact.id];
+    if (!currentUser || !sbTeam?.id) return null;
+    try {
+      const { data, error } = await sb.from("saved_contacts").insert({
+        user_id: currentUser.id,
+        team_id: sbTeam.id,
+        apollo_id: String(contact.id),
+        contact_data: { ...contact, pipeline_stage: "New" },
+      }).select("id").single();
+      if (error) { console.warn("Ensure saved contact error:", error.message); return null; }
+      if (data) {
+        setSavedRowIds(p => ({ ...p, [contact.id]: data.id }));
+        setSavedIds(p => new Set([...p, contact.id]));
+        setSavedContacts(p => [...p.filter(c=>c.id!==contact.id), contact]);
+        setPipelineStages(p => ({ ...p, [contact.id]: "New" }));
+        return data.id;
+      }
+    } catch (e) { console.warn("Ensure saved contact error:", e.message); }
+    return null;
+  }
+
+  async function toggleContactInList(contact, listId) {
+    const cid = contact.id;
+    const isIn = listMemberships[listId]?.has(cid);
+    if (isIn) {
+      // Remove
+      setListMemberships(p => { const n = { ...p }; n[listId] = new Set(n[listId]); n[listId].delete(cid); return n; });
+      setListContactData(p => ({ ...p, [listId]: (p[listId]||[]).filter(c => c.id !== cid) }));
+      setLists(p => p.map(l => l.id === listId ? { ...l, count: Math.max(0, (l.count||0) - 1) } : l));
+      const savedContactId = savedRowIds[cid];
+      if (savedContactId && sbTeam) {
+        try { await sb.from("list_contacts").delete().eq("list_id", listId).eq("contact_id", savedContactId); } catch (e) { console.warn(e.message); }
+      }
+    } else {
+      // Add — first make sure this contact has a saved_contacts row, since list_contacts references that id
+      const savedContactId = await ensureSavedContactId(contact);
+      if (!savedContactId) { alert("Couldn't add to list — please try again."); return; }
+      setListMemberships(p => { const n = { ...p }; n[listId] = new Set(n[listId] ? [...n[listId], cid] : [cid]); return n; });
+      setListContactData(p => ({ ...p, [listId]: [...(p[listId]||[]).filter(c=>c.id!==cid), contact] }));
+      setLists(p => p.map(l => l.id === listId ? { ...l, count: (l.count||0) + 1 } : l));
+      try {
+        const { error } = await sb.from("list_contacts").insert({ list_id: listId, contact_id: savedContactId });
+        if (error) console.warn("Add to list error:", error.message);
+      } catch (e) { console.warn("Add to list error:", e.message); }
+    }
+  }
+
   async function toggleSave(contactOrId) {
     const id = typeof contactOrId === 'object' ? contactOrId.id : contactOrId;
     const contact = typeof contactOrId === 'object' ? contactOrId : MOCK_CONTACTS.find(c=>c.id===id) || pdlContacts.find(c=>c.id===id);
@@ -779,13 +871,11 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
         setSavedContacts(p => [...p.filter(c=>c.id!==id), contact]);
         setPipelineStages(p => ({ ...p, [id]: "New" }));
         // Save to Supabase
-        if (currentUser) {
+        if (currentUser && sbTeam?.id) {
           try {
-            // Use known team ID or look it up
-            let teamId = sbTeam?.id || 'd48bb0fa-89e2-4cfc-9b93-3e5f880b802c';
             const { data, error } = await sb.from("saved_contacts").insert({
               user_id: currentUser.id,
-              team_id: teamId,
+              team_id: sbTeam.id,
               apollo_id: String(id),
               contact_data: { ...contact, pipeline_stage: "New" }
             }).select("id").single();
@@ -946,6 +1036,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
           // Load lists
           const { data: lsts } = await sb.from("lists").select("id, name, list_contacts(count)").eq("team_id", mem.team_id);
           if (lsts) setLists(lsts.map(l => ({ id: l.id, name: l.name, count: l.list_contacts?.[0]?.count || 0 })));
+          loadListMemberships(mem.team_id);
           // Load saved contacts
           const { data: saved, error: savedError } = await sb.from("saved_contacts").select("id, contact_data").eq("user_id", user.id);
           console.log("Loaded saved contacts:", saved?.length || 0, "error:", savedError?.message);
@@ -1013,6 +1104,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
       if (team) { setSbTeam(team); setSelectedPlan(team.plan); }
       const { data: lsts } = await sb.from("lists").select("id, name, list_contacts(count)").eq("team_id", mem.team_id);
       if (lsts) setLists(lsts.map(l => ({ id: l.id, name: l.name, count: l.list_contacts?.[0]?.count || 0 })));
+      loadListMemberships(mem.team_id);
       const { data: saved, error: savedErr } = await sb.from("saved_contacts").select("id, contact_data").eq("user_id", user.id);
       console.log("Login - saved contacts:", saved?.length || 0, "error:", savedErr?.message);
       if (saved && saved.length > 0) {
@@ -1323,7 +1415,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
           { h: "7. Security", p: "We implement industry-standard security measures including encryption in transit (TLS 1.3), encryption at rest, row-level security in our database, API key isolation, and regular security audits. No method of transmission over the internet is 100% secure, and we cannot guarantee absolute security." },
           { h: "8. Cookies", p: "We use essential cookies for authentication and session management. We also use analytics cookies (Google Analytics) to understand how users interact with our platform. You can control cookies through your browser settings. Disabling essential cookies may affect platform functionality." },
           { h: "9. Changes to This Policy", p: "We may update this Privacy Policy from time to time. We will notify you of significant changes by email and by posting the new policy on this page with an updated effective date." },
-          { h: "10. Contact Us", p: "If you have questions about this Privacy Policy, please contact us at privacy@zelvarix.ai or write to Zelvarix, Inc., [Your Address]." },
+          { h: "10. Contact Us", p: "If you have questions about this Privacy Policy, please contact us at privacy@zelvarix.ai." },
         ]
       },
       terms: {
@@ -1930,7 +2022,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                   </div>
                 ) : (
                   <>{sorted.map(c=>(
-                    <div key={c.id} className="row-hover" onClick={()=>setSelectedContact(selectedContact?.id===c.id?null:c)} style={{ display:"grid", gridTemplateColumns:`${selectMode?"28px ":""}2.2fr 1.4fr 1fr 0.7fr 0.7fr 80px 60px`, padding:"9px 20px", borderBottom:`1px solid ${T.border}`, alignItems:"center", cursor:"pointer", background:selectedContact?.id===c.id?T.greenl:"#fff", transition:"background .1s" }}>
+                    <div key={c.id} className="row-hover" onClick={()=>setSelectedContact(selectedContact?.id===c.id?null:c)} style={{ display:"grid", gridTemplateColumns:`${selectMode?"28px ":""}2.2fr 1.4fr 1fr 0.7fr 0.7fr 80px 60px`, padding:"9px 20px", borderBottom:`1px solid ${T.border}`, alignItems:"center", cursor:"pointer", background:selectedContact?.id===c.id?T.greenl:"#fff", transition:"background .1s", position:"relative" }}>
                       {selectMode && (
                         <div onClick={e=>{e.stopPropagation();toggleExport(c.id);}} style={{ width:16, height:16, borderRadius:3, border:`1.5px solid ${selectedForExport.has(c.id)?T.green:T.borderd}`, background:selectedForExport.has(c.id)?T.green:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"all .1s" }}>
                           {selectedForExport.has(c.id) && <span style={{ color:"#fff", fontSize:10, lineHeight:1 }}>✓</span>}
@@ -1955,8 +2047,39 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                         {useLiveData && !isDemo && !revealedIds.has(c.id) && revealCache[c.id] && (
                           <button onClick={e=>{e.stopPropagation();revealContact(c);}} style={{ fontSize:9, fontWeight:700, padding:"3px 6px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, cursor:"pointer", color:T.green, fontFamily:"'DM Sans',sans-serif", whiteSpace:"nowrap" }}>Reveal</button>
                         )}
-                        <button onClick={e=>{e.stopPropagation();setAiContact(c);}} style={{ width:26, height:26, background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, cursor:"pointer", fontSize:12, color:T.green, display:"flex", alignItems:"center", justifyContent:"center" }} title="AI Insights">✦</button>
-                        <button onClick={e=>{e.stopPropagation();toggleSave(c);}} style={{ width:26, height:26, background:savedIds.has(c.id)?T.amberl:"#fff", border:`1px solid ${savedIds.has(c.id)?T.amberb:T.border}`, borderRadius:3, cursor:"pointer", fontSize:12, color:savedIds.has(c.id)?T.amber:T.inkmut, display:"flex", alignItems:"center", justifyContent:"center" }}>{savedIds.has(c.id)?"★":"☆"}</button>
+                        <button onClick={e=>{e.stopPropagation();setAiContact(c);}} style={{ width:26, height:26, background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, cursor:"pointer", fontSize:12, color:T.green, display:"flex", alignItems:"center", justifyContent:"center" }} title="AI Insights — ice breakers, scoring & email drafts">✦</button>
+                        <button onClick={e=>{e.stopPropagation();toggleSave(c);}} style={{ width:26, height:26, background:savedIds.has(c.id)?T.amberl:"#fff", border:`1px solid ${savedIds.has(c.id)?T.amberb:T.border}`, borderRadius:3, cursor:"pointer", fontSize:12, color:savedIds.has(c.id)?T.amber:T.inkmut, display:"flex", alignItems:"center", justifyContent:"center" }} title={savedIds.has(c.id)?"Remove from saved contacts":"Save this contact"}>{savedIds.has(c.id)?"★":"☆"}</button>
+                        <button onClick={e=>{e.stopPropagation();setListPickerFor(listPickerFor?.id===c.id?null:c);}} style={{ width:26, height:26, background:"#fff", border:`1px solid ${T.border}`, borderRadius:3, cursor:"pointer", fontSize:14, color:T.inkmut, display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1 }} title="Add to a list">+</button>
+                        {listPickerFor?.id === c.id && (
+                          <div onClick={e=>e.stopPropagation()} style={{ position:"absolute", top:"100%", right:8, marginTop:4, background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, boxShadow:`0 6px 24px ${T.shadowd}`, width:220, zIndex:100, padding:8 }}>
+                            <div style={{ fontSize:10, fontWeight:600, color:T.inkmut, textTransform:"uppercase", letterSpacing:1, padding:"4px 6px 8px" }}>Add to list</div>
+                            {lists.length === 0 && (
+                              <div style={{ fontSize:12, color:T.inkmut, padding:"4px 6px 10px" }}>No lists yet — create one below.</div>
+                            )}
+                            {lists.map(l => (
+                              <div key={l.id} onClick={()=>toggleContactInList(c, l.id)} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 6px", borderRadius:4, cursor:"pointer", fontSize:13 }} onMouseEnter={e=>e.currentTarget.style.background=T.paper} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                                <div style={{ width:16, height:16, borderRadius:3, border:`1.5px solid ${listMemberships[l.id]?.has(c.id)?T.green:T.borderd}`, background:listMemberships[l.id]?.has(c.id)?T.green:"#fff", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                                  {listMemberships[l.id]?.has(c.id) && <span style={{ color:"#fff", fontSize:10, lineHeight:1 }}>✓</span>}
+                                </div>
+                                <span style={{ color:T.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{l.name}</span>
+                              </div>
+                            ))}
+                            <div style={{ borderTop:`1px solid ${T.border}`, marginTop:6, paddingTop:6 }}>
+                              <button onClick={async()=>{
+                                const n = prompt("List name?");
+                                if (!n) return;
+                                try {
+                                  if (sbTeam && currentUser) {
+                                    const { data } = await sb.from("lists").insert({ team_id:sbTeam.id, created_by:currentUser.id, name:n }).select().single();
+                                    if (data) setLists(p=>[...p,{ id:data.id, name:n, count:0 }]);
+                                  } else {
+                                    setLists(p=>[...p,{ id:Date.now(), name:n, count:0 }]);
+                                  }
+                                } catch(e) { console.warn("List create error:", e); setLists(p=>[...p,{ id:Date.now(), name:n, count:0 }]); }
+                              }} style={{ width:"100%", textAlign:"left", fontSize:12, fontWeight:600, color:T.green, background:"none", border:"none", cursor:"pointer", padding:"6px", fontFamily:"'DM Sans',sans-serif" }}>+ New list</button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -2088,7 +2211,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
         {view==="lists" && (
           <div style={{ flex:1, padding:"28px 32px", overflowY:"auto" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:28 }}>
-              <SectionHeading label="Lists" sub="Your saved prospect lists" />
+              <SectionHeading label="Lists" sub="★ Saved contacts is a quick catch-all. Create named lists below and use the + button on any contact to organize them further." />
               <button onClick={async()=>{
                 const n = prompt("List name?");
                 if (!n) return;
@@ -2135,16 +2258,17 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
             )}
 
             {/* Lists grid */}
-            {lists.length > 0 && (
+            {lists.length > 0 && !openListDetail && (
               <>
                 <div style={{ fontSize:11, fontWeight:600, color:T.inkmut, textTransform:"uppercase", letterSpacing:1, marginBottom:12 }}>My lists ({lists.length})</div>
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
                   {lists.map(l=>(
-                    <div key={l.id} style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, padding:"18px 20px", cursor:"pointer", transition:"border-color .15s" }}>
+                    <div key={l.id} onClick={()=>setOpenListDetail(l)} style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, padding:"18px 20px", cursor:"pointer", transition:"border-color .15s" }}>
                       <div style={{ fontSize:10, fontWeight:600, color:T.inkmut, fontFamily:"'DM Mono',monospace", marginBottom:8 }}>LIST</div>
                       <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:18, color:T.ink, marginBottom:4 }}>{l.name}</div>
-                      <div style={{ fontSize:12, color:T.inkm, marginBottom:12 }}>{l.count} contacts</div>
-                      <button onClick={async()=>{
+                      <div style={{ fontSize:12, color:T.inkm, marginBottom:12 }}>{l.count} contact{l.count===1?"":"s"}</div>
+                      <button onClick={async(e)=>{
+                        e.stopPropagation();
                         if (!window.confirm(`Delete list "${l.name}"?`)) return;
                         try {
                           if (sbTeam) await sb.from("lists").delete().eq("id", l.id);
@@ -2155,6 +2279,38 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                   ))}
                 </div>
               </>
+            )}
+
+            {/* List detail view */}
+            {openListDetail && (
+              <div>
+                <button onClick={()=>setOpenListDetail(null)} style={{ fontSize:12, color:T.inkm, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", padding:0, marginBottom:16 }}>← Back to lists</button>
+                <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:24, color:T.ink, marginBottom:4 }}>{openListDetail.name}</div>
+                <div style={{ fontSize:13, color:T.inkm, marginBottom:20 }}>{(listContactData[openListDetail.id]||[]).length} contact{(listContactData[openListDetail.id]||[]).length===1?"":"s"} in this list</div>
+                {(listContactData[openListDetail.id]||[]).length === 0 ? (
+                  <div style={{ textAlign:"center", padding:"60px 20px", background:"#fff", border:`1px solid ${T.border}`, borderRadius:5 }}>
+                    <div style={{ fontSize:13, color:T.inkmut, marginBottom:16 }}>No contacts in this list yet. Use the + button on any contact in Discover to add them here.</div>
+                    <button onClick={()=>setView("discover")} style={{ padding:"8px 20px", background:T.ink, border:"none", borderRadius:4, color:T.cream, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Go to Discover →</button>
+                  </div>
+                ) : (
+                  <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, overflow:"hidden" }}>
+                    {(listContactData[openListDetail.id]||[]).map((c,i,arr)=>(
+                      <div key={c.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 16px", borderBottom:i<arr.length-1?`1px solid ${T.border}`:"none", background:i%2===0?"#fff":T.cream }}>
+                        <div style={{ minWidth:0 }}>
+                          <div style={{ fontSize:13, fontWeight:500, color:T.ink }}>{c.name}</div>
+                          <div style={{ fontSize:11, color:T.inkm }}>{c.title} · {c.company}</div>
+                          <div style={{ fontSize:11, color:T.inkmut }}>{c.location}</div>
+                        </div>
+                        <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
+                          {c.score !== undefined && <ScorePill score={c.score} />}
+                          <button onClick={()=>setAiContact(c)} style={{ fontSize:11, padding:"4px 8px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, color:T.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>✦ AI</button>
+                          <button onClick={()=>toggleContactInList(c, openListDetail.id)} style={{ fontSize:11, color:T.red, background:T.redl, border:`1px solid ${T.redb}`, borderRadius:3, padding:"4px 8px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Remove</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
