@@ -571,15 +571,10 @@ export default function App() {
     return () => window.removeEventListener("click", close);
   }, [listPickerFor]);
 
-  // Re-run PDL search when filters or query change while in live mode
-  useEffect(() => {
-    if (!useLiveData) return;
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      runPDLSearch(1, false);
-    }, 600);
-    return () => clearTimeout(debounceRef.current);
-  }, [filters, searchQuery, useLiveData, filters.naicsCode?.code]);
+  // NOTE: Live search now only fires when the user explicitly clicks "Search" (or presses
+  // Enter in a filter field) — see the Search button in the filter sidebar. Auto-firing on
+  // every filter change used to burn a search credit per keystroke/dropdown change, which
+  // could silently exhaust someone's monthly allowance just from browsing filters.
 
   // Mock data filtered locally
   const mockFiltered = MOCK_CONTACTS.slice(0, 10).filter(c => {
@@ -617,9 +612,11 @@ PLANS & PRICING:
 
 HOW SEARCHES WORK:
 - Users filter by industry, company name, company keyword, size, seniority, department, state, city
+- Setting filters doesn't use a credit by itself — click the "Search" button (or press Enter in a text filter) to actually run the search
 - Sample Data mode shows demo contacts — no credits used
 - Live Data mode queries the Zelvarix proprietary contact database of 1.3B+ profiles
-- Each search in Live Data mode counts against your monthly search allowance
+- Each time you click Search (or press Enter) in Live Data mode, it counts as 1 search against your monthly allowance — adjusting filters afterward and clicking Search again counts as another search
+- Loading more results on the same search (via "Load more contacts") does not use an additional search credit
 - Results show name, title, company, location, seniority, and AI score
 
 HOW REVEALS WORK:
@@ -1895,7 +1892,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
 
               {/* Search */}
               <div style={{ marginBottom:16 }}>
-                <input className="input-base" value={searchQuery} onChange={e=>{ setSearchQuery(e.target.value); if(e.target.value) setFilters(p=>({...p,companyKeyword:"",companyName:""})); }} placeholder="Search name…" style={{ fontSize:12, padding:"7px 10px" }} />
+                <input className="input-base" value={searchQuery} onChange={e=>{ setSearchQuery(e.target.value); if(e.target.value) setFilters(p=>({...p,companyKeyword:"",companyName:""})); }} onKeyDown={e=>e.key==="Enter"&&useLiveData&&runPDLSearch(1,false)} placeholder="Search name…" style={{ fontSize:12, padding:"7px 10px" }} />
               </div>
 
               {[
@@ -1906,7 +1903,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                   />
                 )},
                 { label:"Company Name", jsx: (
-                  <input className="input-base" value={filters.companyName} onChange={e=>{ const v=e.target.value; setFilters(p=>({...p,companyName:v})); if(v) setFilters(p=>({...p,companyKeyword:""})); if(v) setSearchQuery(""); }} placeholder="e.g. Chevron, HCA…" style={{ fontSize:12, padding:"7px 10px" }} />
+                  <input className="input-base" value={filters.companyName} onChange={e=>{ const v=e.target.value; setFilters(p=>({...p,companyName:v})); if(v) setFilters(p=>({...p,companyKeyword:""})); if(v) setSearchQuery(""); }} onKeyDown={e=>e.key==="Enter"&&useLiveData&&runPDLSearch(1,false)} placeholder="e.g. Chevron, HCA…" style={{ fontSize:12, padding:"7px 10px" }} />
                 )},
                 { label:"Company Size", jsx: (
                   <select style={selectStyle} value={filters.size} onChange={e=>setFilters(p=>({...p,size:e.target.value}))}>
@@ -1934,10 +1931,10 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                   </select>
                 )},
                 { label:"Company Keyword", jsx: (
-                  <input className="input-base" value={filters.companyKeyword} onChange={e=>{ const v=e.target.value; setFilters(p=>({...p,companyKeyword:v,companyName:""})); if(v) setSearchQuery(""); }} placeholder="e.g. beauty salon, funeral…" style={{ fontSize:12, padding:"7px 10px" }} />
+                  <input className="input-base" value={filters.companyKeyword} onChange={e=>{ const v=e.target.value; setFilters(p=>({...p,companyKeyword:v,companyName:""})); if(v) setSearchQuery(""); }} onKeyDown={e=>e.key==="Enter"&&useLiveData&&runPDLSearch(1,false)} placeholder="e.g. beauty salon, funeral…" style={{ fontSize:12, padding:"7px 10px" }} />
                 )},
                 { label:"City", jsx: (
-                  <input className="input-base" value={filters.city} onChange={e=>setFilters(p=>({...p,city:e.target.value}))} placeholder="e.g. Houston" style={{ fontSize:12, padding:"7px 10px" }} />
+                  <input className="input-base" value={filters.city} onChange={e=>setFilters(p=>({...p,city:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&useLiveData&&runPDLSearch(1,false)} placeholder="e.g. Houston" style={{ fontSize:12, padding:"7px 10px" }} />
                 )},
               ].map(f=>(
                 <div key={f.label} style={{ marginBottom:14 }}>
@@ -1946,6 +1943,9 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                 </div>
               ))}
 
+              {useLiveData && (
+                <button onClick={()=>runPDLSearch(1, false)} disabled={pdlLoading} style={{ width:"100%", padding:"9px", marginBottom:8, background:pdlLoading?T.paperd:T.ink, border:"none", borderRadius:4, color:pdlLoading?T.inkmut:T.cream, fontWeight:600, fontSize:13, cursor:pdlLoading?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif" }}>{pdlLoading?"Searching…":"🔍 Search"}</button>
+              )}
               <button onClick={()=>{ setSearchQuery(""); setFilters({ pdlIndustry:"", companyName:"", companyKeyword:"", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" }); }} style={{ fontSize:11, color:T.inkmut, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textDecoration:"underline", marginTop:4 }}>Reset</button>
             </div>
 
