@@ -520,8 +520,7 @@ export default function App() {
     nextBill: { date: sbTeam?.next_billing_date || "—", amount: activePlan.annualOnly ? (activePlan.yearlyPrice||0) : (activePlan.monthlyPrice||0) },
     history: [], // Real billing history is not yet wired up to Stripe invoices — showing empty rather than fake data
   };
-  const [onboardStep, setOnboardStep] = useState(0);
-  const [onboardData, setOnboardData] = useState({ name:"", company:"", role:"", goal:"", bookingLink:"" });
+  const [onboardData, setOnboardData] = useState({ name:"", company:"", role:"", goal:"", referralSource:"", bookingLink:"" });
 
   const activeUser = teamMembers.find(u => u.id === activeUserId) || teamMembers[0] || { role:"admin", name:"", avatar:"" };
   const perms      = ROLE_PERMISSIONS[activeUser.role] || ROLE_PERMISSIONS.admin;
@@ -1162,14 +1161,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
   }
 
   // ── ONBOARDING ─────────────────────────────────────────────────────────────
-  const onboardSteps = [
-    { title:"Tell us about yourself", sub:"We'll personalise your experience.", field:null },
-    { title:"What's your name?",      field:"name",    placeholder:"Full name" },
-    { title:"Your company?",          field:"company", placeholder:"Company name" },
-    { title:"Your role?",             field:"role",    placeholder:"e.g. AE, SDR, Founder, VP Sales" },
-    { title:"Primary goal?",          field:"goal",    placeholder:"e.g. Book 10 demos/month" },
-    { title:"Add your booking link?", field:"bookingLink", placeholder:"https://calendly.com/your-name/30min", sub:"Optional — auto-appears in your AI-drafted emails. You can add this later in Settings.", skippable:true },
-  ];
+  const REFERRAL_SOURCES = ["LinkedIn", "Google search", "Referral from a colleague", "Twitter/X", "Podcast or blog", "Other"];
 
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1747,40 +1739,70 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
   // ONBOARDING
   // ══════════════════════════════════════════════════════════════════════════
   if (appView==="onboard") {
-    const step = onboardSteps[onboardStep];
+    const canLaunch = onboardData.name.trim().length > 0;
+    async function saveAndLaunch() {
+      try {
+        if (currentUser) {
+          await sb.from("profiles").upsert({
+            id: currentUser.id,
+            name: onboardData.name,
+            company: onboardData.company || null,
+            role: onboardData.role || null,
+            goal: onboardData.goal || null,
+            referral_source: onboardData.referralSource || null,
+            booking_link: onboardData.bookingLink || null,
+          });
+          if (onboardData.bookingLink) setBookingLink(onboardData.bookingLink);
+        }
+      } catch(e) { console.warn("Profile save error:", e); }
+      setAppView("app");
+    }
     return (
-      <div style={{ minHeight:"100vh", background:T.cream, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans',sans-serif" }}>
+      <div style={{ minHeight:"100vh", background:T.cream, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans',sans-serif", padding:"40px 20px" }}>
         <style>{GLOBAL_CSS}</style>
         <div style={{ width:480, animation:"fadeIn .4s ease" }}>
           <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:28, color:T.ink, marginBottom:6, letterSpacing:-.3 }}>Zelvarix<span style={{ color:T.green, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
-          <div style={{ fontSize:12, color:T.inkmut, marginBottom:36 }}>Let's get you set up</div>
-          {/* Progress */}
-          <div style={{ display:"flex", gap:4, marginBottom:36 }}>
-            {onboardSteps.map((_,i)=>(
-              <div key={i} style={{ flex:1, height:2, borderRadius:1, background:i<=onboardStep?T.green:T.paperd, transition:"background .3s" }} />
-            ))}
-          </div>
+          <div style={{ fontSize:12, color:T.inkmut, marginBottom:24 }}>Let's get you set up — just a few quick details.</div>
           <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:6, padding:"32px 32px 28px", boxShadow:`0 2px 16px ${T.shadow}` }}>
-            <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:24, color:T.ink, marginBottom:6, letterSpacing:-.3 }}>{step.title}</div>
-            {step.sub && <div style={{ fontSize:13, color:T.inkm, marginBottom:22 }}>{step.sub}</div>}
-            {step.field && (
-              <input autoFocus className="input-base" value={onboardData[step.field]||""} onChange={e=>setOnboardData(p=>({...p,[step.field]:e.target.value}))} placeholder={step.placeholder} onKeyDown={e=>e.key==="Enter"&&(onboardStep<onboardSteps.length-1?setOnboardStep(s=>s+1):setAppView("app"))} style={{ marginBottom:step.skippable?8:20 }} />
-            )}
-            <button onClick={async()=>{ if(onboardStep<onboardSteps.length-1){ setOnboardStep(s=>s+1); } else { try { if(currentUser){ await sb.from("profiles").upsert({ id:currentUser.id, name:onboardData.name, company:onboardData.company, role:onboardData.role, goal:onboardData.goal, booking_link:onboardData.bookingLink||null });
-              if (onboardData.bookingLink) setBookingLink(onboardData.bookingLink); } } catch(e){ console.warn("Profile save error:", e); } setAppView("app"); } }} style={{ width:"100%", padding:"11px", background:T.ink, border:"none", borderRadius:4, color:T.cream, fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
-              {onboardStep===0?"Get started →":onboardStep<onboardSteps.length-1?"Continue →":"Launch Zelvarix →"}
+
+            <div style={{ marginBottom:16 }}>
+              <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Full name</label>
+              <input autoFocus className="input-base" value={onboardData.name} onChange={e=>setOnboardData(p=>({...p,name:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&canLaunch&&saveAndLaunch()} placeholder="Full name" />
+            </div>
+
+            <div style={{ display:"flex", gap:12, marginBottom:16 }}>
+              <div style={{ flex:1 }}>
+                <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Company <span style={{ color:T.inkmut, fontWeight:400 }}>(optional)</span></label>
+                <input className="input-base" value={onboardData.company} onChange={e=>setOnboardData(p=>({...p,company:e.target.value}))} placeholder="Company name" />
+              </div>
+              <div style={{ flex:1 }}>
+                <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Role <span style={{ color:T.inkmut, fontWeight:400 }}>(optional)</span></label>
+                <input className="input-base" value={onboardData.role} onChange={e=>setOnboardData(p=>({...p,role:e.target.value}))} placeholder="e.g. AE, SDR, Founder" />
+              </div>
+            </div>
+
+            <div style={{ marginBottom:16 }}>
+              <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Primary goal <span style={{ color:T.inkmut, fontWeight:400 }}>(optional)</span></label>
+              <input className="input-base" value={onboardData.goal} onChange={e=>setOnboardData(p=>({...p,goal:e.target.value}))} placeholder="e.g. Book 10 demos/month" />
+            </div>
+
+            <div style={{ marginBottom:16 }}>
+              <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>How did you hear about us? <span style={{ color:T.inkmut, fontWeight:400 }}>(optional)</span></label>
+              <select className="input-base" value={onboardData.referralSource} onChange={e=>setOnboardData(p=>({...p,referralSource:e.target.value}))} style={{ cursor:"pointer" }}>
+                <option value="">Select one…</option>
+                {REFERRAL_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+
+            <div style={{ marginBottom:8 }}>
+              <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Booking link <span style={{ color:T.inkmut, fontWeight:400 }}>(optional)</span></label>
+              <input className="input-base" value={onboardData.bookingLink} onChange={e=>setOnboardData(p=>({...p,bookingLink:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&canLaunch&&saveAndLaunch()} placeholder="https://calendly.com/your-name/30min" />
+              <div style={{ fontSize:11, color:T.inkmut, marginTop:6, lineHeight:1.5 }}>Auto-appears in your AI-drafted emails. Don't have one? Sign up free at calendly.com — you can also add this later in Settings.</div>
+            </div>
+
+            <button onClick={saveAndLaunch} disabled={!canLaunch} style={{ width:"100%", padding:"11px", marginTop:14, background:canLaunch?T.ink:T.paperd, border:"none", borderRadius:4, color:canLaunch?T.cream:T.inkmut, fontWeight:600, fontSize:14, cursor:canLaunch?"pointer":"not-allowed", fontFamily:"'DM Sans',sans-serif" }}>
+              Launch Zelvarix →
             </button>
-            {step.skippable && (
-              <>
-                <div style={{ fontSize:11, color:T.inkmut, marginTop:10, marginBottom:8, lineHeight:1.6, padding:"8px 10px", background:T.paper, borderRadius:4, border:`1px solid ${T.border}` }}>
-                  💡 <strong>How to get your link:</strong> Sign up free at calendly.com, create a 30-min meeting, copy your URL. You can skip this and add it later in Settings.
-                </div>
-                <button onClick={async()=>{ try { if(currentUser){ await sb.from("profiles").upsert({ id:currentUser.id, name:onboardData.name, company:onboardData.company, role:onboardData.role, goal:onboardData.goal, booking_link:null }); } } catch(e){ console.warn("Skip:", e); } setAppView("app"); }} style={{ width:"100%", padding:"9px", background:"none", border:`1px solid ${T.border}`, borderRadius:4, color:T.inkmut, cursor:"pointer", fontSize:13, fontFamily:"'DM Sans',sans-serif" }}>
-                  Skip for now — add in Settings later
-                </button>
-              </>
-            )}
-            {onboardStep>0 && <button onClick={()=>setOnboardStep(s=>s-1)} style={{ width:"100%", marginTop:6, padding:"8px", background:"none", border:"none", color:T.inkmut, cursor:"pointer", fontSize:12, fontFamily:"'DM Sans',sans-serif" }}>← Back</button>}
           </div>
         </div>
       </div>
