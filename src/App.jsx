@@ -414,6 +414,22 @@ function AIPanel({ contact, onClose, bookingLink }) {
   );
 }
 
+// ─── UTILITIES ────────────────────────────────────────────────────────────────
+// Normalizes an email for trial-abuse comparison only — never used for login/auth.
+// Strips +alias tags on every domain, and strips dots from the local part on
+// Gmail/Googlemail (the only major providers where dots are ignored).
+function normalizeEmail(raw) {
+  if (!raw) return "";
+  let [local, domain] = raw.trim().toLowerCase().split("@");
+  if (!domain) return raw.trim().toLowerCase();
+  local = local.split("+")[0];
+  if (domain === "gmail.com" || domain === "googlemail.com") {
+    local = local.replace(/\./g, "");
+    domain = "gmail.com";
+  }
+  return `${local}@${domain}`;
+}
+
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [appView, setAppView]   = useState("splash");
@@ -1138,8 +1154,21 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
     if (error) { setAuthLoading(false); setAuthError(error.message); return; }
     const user = data.user;
     setCurrentUser(user);
+    // 1b. Soft-flag check for +alias / Gmail-dot trial abuse — never blocks signup.
+    // Server normalizes + records the email and tells us if it's seen this
+    // normalized form before; we just store the flag on the profile.
+    let trialFlagged = false;
+    try {
+      const flagRes = await fetch('/api/check-trial-signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: signupData.email, userId: user.id }),
+      });
+      const flagData = await flagRes.json();
+      trialFlagged = !!flagData.flagged;
+    } catch (e) { console.warn('Trial abuse check error (non-blocking):', e); }
     // 2. Create profile
-    await sb.from("profiles").insert({ id: user.id, name: signupData.name, terms_accepted_at: new Date().toISOString() });
+    await sb.from("profiles").insert({ id: user.id, name: signupData.name, terms_accepted_at: new Date().toISOString(), trial_flag: trialFlagged });
     // 3. Create team
     const planCredits = { starter:200, pro:1000, team:5000, enterprise:999999 };
     const planSeats   = { starter:1,   pro:10,   team:50,   enterprise:9999   };
