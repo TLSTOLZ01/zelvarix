@@ -516,6 +516,12 @@ export default function App() {
   const [bulkEmailLoading, setBulkEmailLoading]   = useState(false);
   const [showBulkEmail, setShowBulkEmail]         = useState(false);
   const [inviteRole, setInviteRole]   = useState("rep");
+  // ── Waitlist ("coming soon" landing page) state — declared unconditionally
+  // alongside all other hooks, even though only used on the /coming-soon route.
+  const [wlEmail, setWlEmail]           = useState("");
+  const [wlSubmitting, setWlSubmitting] = useState(false);
+  const [wlDone, setWlDone]             = useState(false);
+  const [wlError, setWlError]           = useState("");
   // Dynamic billing derived from selected plan
   const activePlan   = PLANS.find(p => p.id === selectedPlan) || PLANS[1]; // default Pro
   const trialDaysLeft = (() => {
@@ -1192,6 +1198,81 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
   // ── ONBOARDING ─────────────────────────────────────────────────────────────
   const REFERRAL_SOURCES = ["LinkedIn", "Google search", "Referral from a colleague", "Twitter/X", "Podcast or blog", "Other"];
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // COMING SOON / WAITLIST — standalone landing page, no auth/app logic
+  // ══════════════════════════════════════════════════════════════════════════
+  if (typeof window !== "undefined" && window.location.pathname === "/coming-soon") {
+    async function joinWaitlist() {
+      setWlError("");
+      const email = wlEmail.trim().toLowerCase();
+      if (!email || !email.includes("@") || !email.includes(".")) {
+        setWlError("Please enter a valid email address.");
+        return;
+      }
+      setWlSubmitting(true);
+      try {
+        const { error } = await sb.from("waitlist").insert({ email });
+        if (error) {
+          // Unique constraint violation — they're already on the list, treat as success
+          if (error.code === "23505" || /duplicate/i.test(error.message || "")) {
+            setWlDone(true);
+          } else {
+            setWlError("Something went wrong — please try again.");
+          }
+        } else {
+          setWlDone(true);
+        }
+      } catch (e) {
+        setWlError("Something went wrong — please try again.");
+      }
+      setWlSubmitting(false);
+    }
+
+    return (
+      <div style={{ minHeight:"100vh", background:T.ink, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans',sans-serif", position:"relative", overflow:"hidden", padding:"40px 20px" }}>
+        <style>{GLOBAL_CSS}</style>
+        <div style={{ position:"absolute", inset:0, backgroundImage:"url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='.04'/%3E%3C/svg%3E\")", opacity:.6, pointerEvents:"none" }} />
+        <div style={{ width:"100%", maxWidth:480, position:"relative", zIndex:1, textAlign:"center", animation:"fadeIn .6s ease" }}>
+          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:48, color:T.cream, letterSpacing:-1.5, lineHeight:1, marginBottom:10 }}>Zelvarix<span style={{ color:T.greenb, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
+          <div style={{ fontSize:12, color:"rgba(255,255,255,.4)", letterSpacing:2, textTransform:"uppercase", marginBottom:36 }}>Coming Soon</div>
+
+          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:28, color:T.cream, lineHeight:1.3, marginBottom:16 }}>
+            B2B prospecting, built for<br />businesses like yours.
+          </div>
+          <div style={{ fontSize:14, color:"rgba(255,255,255,.6)", lineHeight:1.7, marginBottom:36, maxWidth:400, marginLeft:"auto", marginRight:"auto" }}>
+            Over 1.3 billion verified contacts, AI-powered outreach, and transparent flat pricing starting at $59/month. We're putting the finishing touches on things now.
+          </div>
+
+          {wlDone ? (
+            <div style={{ background:"rgba(168,212,184,.12)", border:`1px solid rgba(168,212,184,.3)`, borderRadius:8, padding:"22px 24px" }}>
+              <div style={{ fontSize:24, marginBottom:8 }}>✓</div>
+              <div style={{ fontSize:15, color:T.cream, fontWeight:600, marginBottom:4 }}>You're on the list!</div>
+              <div style={{ fontSize:13, color:"rgba(255,255,255,.6)" }}>We'll email you the moment Zelvarix goes live.</div>
+            </div>
+          ) : (
+            <div style={{ maxWidth:380, margin:"0 auto" }}>
+              <div style={{ display:"flex", gap:8 }}>
+                <input
+                  className="input-base"
+                  value={wlEmail}
+                  onChange={e=>setWlEmail(e.target.value)}
+                  onKeyDown={e=>e.key==="Enter"&&!wlSubmitting&&joinWaitlist()}
+                  placeholder="you@company.com"
+                  style={{ flex:1, background:"rgba(255,255,255,.06)", border:"1px solid rgba(255,255,255,.15)", color:T.cream }}
+                />
+                <button onClick={joinWaitlist} disabled={wlSubmitting} style={{ padding:"9px 20px", background:T.greenb, border:"none", borderRadius:4, color:T.ink, fontWeight:700, fontSize:13, cursor:wlSubmitting?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", whiteSpace:"nowrap", opacity:wlSubmitting?.6:1 }}>
+                  {wlSubmitting ? "…" : "Notify me"}
+                </button>
+              </div>
+              {wlError && <div style={{ fontSize:12, color:"#f5a3a3", marginTop:10 }}>{wlError}</div>}
+              <div style={{ fontSize:11, color:"rgba(255,255,255,.3)", marginTop:14 }}>No spam. Just one email when we launch.</div>
+            </div>
+          )}
+        </div>
+        <div style={{ position:"absolute", bottom:24, fontSize:11, color:"rgba(255,255,255,.15)", letterSpacing:1 }}>© 2026 Zelvarix.ai</div>
+      </div>
+    );
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   // PRICING PAGE — integrated
