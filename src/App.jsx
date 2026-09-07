@@ -922,6 +922,22 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
       } catch(e) { console.warn(e); }
     }
   }
+  // Notes persist alongside the contact regardless of pipeline stage — stored in the
+  // same flexible contact_data JSONB used for pipeline_stage, so no schema change needed.
+  function updateContactNoteDraft(contactId, note) {
+    setSavedContacts(p => p.map(c => c.id === contactId ? { ...c, notes: note } : c));
+  }
+  async function saveContactNote(contactId) {
+    if (!savedRowIds[contactId] || !currentUser) return;
+    try {
+      const contact = savedContacts.find(c=>c.id===contactId);
+      if (contact) {
+        await sb.from("saved_contacts").update({
+          contact_data: { ...contact, pipeline_stage: pipelineStages[contactId] || "New" }
+        }).eq("id", savedRowIds[contactId]);
+      }
+    } catch(e) { console.warn("Save note error:", e); }
+  }
   function toggleExport(id) { setSelectedForExport(p => { const n=new Set(p); n.has(id)?n.delete(id):n.add(id); return n; }); }
 
   function downloadCSV(contacts) {
@@ -2319,6 +2335,17 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                             </div>
                             <div style={{ fontSize:11, color:T.inkm, marginBottom:2 }}>{c.title}</div>
                             <div style={{ fontSize:11, color:T.green, fontWeight:500, marginBottom:10 }}>{c.company}</div>
+                            {/* Notes */}
+                            <textarea
+                              value={c.notes || ""}
+                              onChange={e=>updateContactNoteDraft(c.id, e.target.value)}
+                              onBlur={()=>saveContactNote(c.id)}
+                              onMouseDown={e=>e.stopPropagation()}
+                              draggable={false}
+                              placeholder="Add a note…"
+                              rows={2}
+                              style={{ width:"100%", fontSize:11, padding:"5px 7px", border:`1px solid ${T.border}`, borderRadius:3, background:T.cream, color:T.inkl, fontFamily:"'DM Sans',sans-serif", marginBottom:8, outline:"none", resize:"vertical", lineHeight:1.4, cursor:"text" }}
+                            />
                             {/* Stage selector */}
                             <select value={pipelineStages[c.id]||"New"} onChange={async e=>await moveToStage(c.id, e.target.value)}
                               style={{ width:"100%", fontSize:11, padding:"3px 6px", border:`1px solid ${T.border}`, borderRadius:3, background:T.paper, color:T.inkl, fontFamily:"'DM Sans',sans-serif", marginBottom:8, cursor:"pointer", outline:"none" }}>
