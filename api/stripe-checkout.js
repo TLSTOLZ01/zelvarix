@@ -55,6 +55,12 @@ export default async function handler(req, res) {
       },
       success_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.zelvarix.ai'}?payment=success&plan=${planId}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.zelvarix.ai'}?payment=cancelled`,
+      // Stripe Tax: calculate and collect sales tax automatically based on the
+      // customer's billing address. Requires Stripe Tax to be activated in the
+      // Dashboard with an origin address and state registrations (e.g. Texas)
+      // set up — see Tax settings. Applies to both subscriptions and top-ups.
+      automatic_tax: { enabled: true },
+      billing_address_collection: 'required',
     };
 
     if (isSubscription) {
@@ -70,6 +76,9 @@ export default async function handler(req, res) {
       // Top-up pack — one-time payment
       sessionConfig.mode = 'payment';
       sessionConfig.line_items = [{ price: priceId, quantity: 1 }];
+      // Ensures a Customer object is created even for one-time payments, which
+      // Stripe Tax needs to properly record and report the transaction.
+      sessionConfig.customer_creation = 'always';
     }
 
     const session = await stripe.checkout.sessions.create(sessionConfig);
