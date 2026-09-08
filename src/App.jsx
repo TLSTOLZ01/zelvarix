@@ -441,6 +441,8 @@ export default function App() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [authError, setAuthError]   = useState("");
   const [authLoading, setAuthLoading] = useState(false);
+  const [authNotice, setAuthNotice]   = useState(""); // green info message on the auth screen (e.g. reset email sent)
+  const [resetData, setResetData]     = useState({ password:"", confirm:"" }); // set-new-password form
   const [splashDone, setSplashDone]   = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [sbTeam, setSbTeam]           = useState(null);   // live Supabase team row
@@ -1121,6 +1123,8 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
       // Direct URLs for legal pages (linked from Stripe, emails, etc.) skip the splash + session flow
       const legalPath = { "/terms":"terms", "/privacy":"privacy", "/cookies":"cookies", "/security":"security" }[window.location.pathname];
       if (legalPath) { setSplashDone(true); setSbReady(true); setAppView(legalPath); return; }
+      // Password-recovery link from Supabase lands here with the recovery session in the URL hash
+      if (window.location.pathname === "/reset-password") { setSplashDone(true); setSbReady(true); setAppView("reset"); return; }
       const t1 = setTimeout(()=>setSplashDone(true), 2000);
       restoreSession().then(() => {
         // Only advance to pricing if session restore didn't redirect to app
@@ -1130,6 +1134,33 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
       return ()=>{ clearTimeout(t1); clearTimeout(t2); };
     }
   },[appView]);
+
+  // ── Forgot password: email a recovery link (Supabase Auth) ──
+  const handleForgotPassword = async () => {
+    setAuthError(""); setAuthNotice("");
+    const email = (loginData.email || "").trim();
+    if (!email) { setAuthError("Enter your email above first, then click Forgot."); return; }
+    setAuthLoading(true);
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` });
+    setAuthLoading(false);
+    if (error) { setAuthError(error.message); return; }
+    setAuthNotice(`If an account exists for ${email}, a reset link is on its way. Check your inbox (and spam).`);
+  };
+
+  // ── Set new password after clicking the recovery link ──
+  const handleResetPassword = async () => {
+    setAuthError("");
+    if (resetData.password.length < 8) { setAuthError("Password must be at least 8 characters."); return; }
+    if (resetData.password !== resetData.confirm) { setAuthError("Passwords don't match."); return; }
+    setAuthLoading(true);
+    const { error } = await sb.auth.updateUser({ password: resetData.password });
+    setAuthLoading(false);
+    if (error) { setAuthError(error.message.toLowerCase().includes("session") ? "This reset link has expired. Request a new one from the sign-in page." : error.message); return; }
+    await sb.auth.signOut();
+    window.history.replaceState({}, "", "/");
+    setResetData({ password:"", confirm:"" });
+    setAuthMode("login"); setAuthNotice("Password updated. Sign in with your new password."); setAppView("auth");
+  };
 
   async function handleLogin() {
     setAuthError("");
@@ -1771,6 +1802,34 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
   // ══════════════════════════════════════════════════════════════════════════
   // AUTH
   // ══════════════════════════════════════════════════════════════════════════
+  // ── SET NEW PASSWORD (arrived via Supabase recovery link) ──
+  if (appView==="reset") {
+    return (
+      <div style={{ minHeight:"100vh", background:T.cream, display:"flex", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"'DM Sans',sans-serif" }}>
+        <div style={{ width:"100%", maxWidth:400, background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:32, boxShadow:`0 8px 40px ${T.shadowd}`, animation:"fadeIn .4s ease" }}>
+          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:24, color:T.ink, marginBottom:6 }}>Zelvarix<span style={{ color:T.green }}>.ai</span></div>
+          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:26, color:T.ink, marginBottom:4, letterSpacing:-.5 }}>Set a new password</div>
+          <div style={{ fontSize:13, color:T.inkm, marginBottom:24 }}>Choose a password of at least 8 characters.</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            <div>
+              <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>New password</label>
+              <input className="input-base" type="password" value={resetData.password} onChange={e=>setResetData(p=>({...p,password:e.target.value}))} />
+            </div>
+            <div>
+              <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Confirm password</label>
+              <input className="input-base" type="password" value={resetData.confirm} onChange={e=>setResetData(p=>({...p,confirm:e.target.value}))} onKeyDown={e=>{ if (e.key==="Enter") handleResetPassword(); }} />
+            </div>
+            {authError && <div style={{ fontSize:12, color:T.red, background:T.redl, border:`1px solid ${T.redb}`, borderRadius:4, padding:"8px 12px" }}>{authError}</div>}
+            <button onClick={handleResetPassword} disabled={authLoading} style={{ padding:"11px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+              {authLoading ? <><Spinner />Updating</> : "Update password"}
+            </button>
+            <button type="button" onClick={()=>{ window.history.replaceState({}, "", "/"); setAuthError(""); setAppView("auth"); }} style={{ background:"none", border:"none", color:T.inkm, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Back to sign in</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (appView==="auth") {
     const isLogin = authMode==="login";
     return (
@@ -1836,7 +1895,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
               <div>
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
                   <label style={{ fontSize:12, fontWeight:500, color:T.inkl }}>Password</label>
-                  {isLogin && <button style={{ fontSize:12, color:T.green, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Forgot?</button>}
+                  {isLogin && <button type="button" onClick={handleForgotPassword} disabled={authLoading} style={{ fontSize:12, color:T.green, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Forgot?</button>}
                 </div>
                 <input className="input-base" type="password" value={isLogin?loginData.password:signupData.password} onChange={e=>isLogin?setLoginData(p=>({...p,password:e.target.value})):setSignupData(p=>({...p,password:e.target.value}))} placeholder={isLogin?"Password":"Min. 8 characters"} onKeyDown={e=>e.key==="Enter"&&(isLogin?handleLogin():null)} />
               </div>
@@ -1857,6 +1916,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                   </span>
                 </label>
               )}
+              {authNotice && <div style={{ fontSize:12, color:T.green, background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:4, padding:"8px 12px" }}>{authNotice}</div>}
               {authError && <div style={{ fontSize:12, color:T.red, background:T.redl, border:`1px solid ${T.redb}`, borderRadius:4, padding:"8px 12px" }}>⚠ {authError}</div>}
               <button onClick={isLogin?handleLogin:handleSignup} disabled={authLoading || (!isLogin && !termsAccepted)} style={{ padding:"11px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:14, cursor:(authLoading || (!isLogin && !termsAccepted))?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:(authLoading || (!isLogin && !termsAccepted))?.5:1, marginTop:4 }}>
                 {authLoading ? <><Spinner />{isLogin?"Signing in…":"Creating account…"}</> : isLogin?"Sign in →":"Create account →"}
@@ -1865,7 +1925,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
 
             <div style={{ textAlign:"center", marginTop:20, fontSize:13, color:T.inkm }}>
               {isLogin?"No account? ":"Have an account? "}
-              <button onClick={()=>{setAuthMode(isLogin?"signup":"login");setAuthError("");}} style={{ color:T.green, fontWeight:600, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontSize:13 }}>
+              <button onClick={()=>{setAuthMode(isLogin?"signup":"login");setAuthError("");setAuthNotice("");}} style={{ color:T.green, fontWeight:600, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontSize:13 }}>
                 {isLogin?"Sign up free":"Sign in"}
               </button>
             </div>
