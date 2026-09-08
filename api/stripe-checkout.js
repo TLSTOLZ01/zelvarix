@@ -59,6 +59,10 @@ export default async function handler(req, res) {
       // 7-day free trial, no card required upfront
       sessionConfig.subscription_data = {
         trial_period_days: 7,
+        // No-card trials: cancel cleanly at trial end instead of leaving the
+        // subscription past_due with an unpaid invoice. Fires
+        // customer.subscription.deleted, which downgrades the team to free.
+        trial_settings: { end_behavior: { missing_payment_method: 'cancel' } },
         metadata: { userId, teamId: teamId || '', planId },
       };
       sessionConfig.payment_method_collection = 'if_required';
