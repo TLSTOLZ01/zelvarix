@@ -1109,6 +1109,9 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
       setSbReady(true);
     }
     if (appView==="splash") {
+      // Direct URLs for legal pages (linked from Stripe, emails, etc.) skip the splash + session flow
+      const legalPath = { "/terms":"terms", "/privacy":"privacy", "/cookies":"cookies", "/security":"security" }[window.location.pathname];
+      if (legalPath) { setSplashDone(true); setSbReady(true); setAppView(legalPath); return; }
       const t1 = setTimeout(()=>setSplashDone(true), 2000);
       restoreSession().then(() => {
         // Only advance to pricing if session restore didn't redirect to app
