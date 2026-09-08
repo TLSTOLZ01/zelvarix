@@ -6,6 +6,8 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL || "https://zeuvisaieeswhvddmyje.supabase.co";
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_uJdrzhgEpbY8OW-1sgdnvw_EPifiqor";
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
+// Stripe Customer Portal (Live) — customers update payment method, switch plans, or cancel here
+const STRIPE_PORTAL_URL = "https://billing.stripe.com/p/login/eVq9AUc6K8Ui0Ize9j2Ji00";
 
 // ─── APOLLO / AI CONFIG ──────────────────────────────────────────────────────
 const ANTHROPIC_MODEL = "claude-sonnet-4-6";
@@ -2608,7 +2610,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                       {/* Offer downgrade first */}
                       <div style={{ background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:6, padding:"14px 16px", marginBottom:16 }}>
                         <div style={{ fontSize:13, fontWeight:600, color:T.green, marginBottom:4 }}>💡 Consider downgrading instead</div>
-                        <div style={{ fontSize:12, color:T.inkm, marginBottom:10 }}>Switch to our Starter plan at $39/mo and keep your contacts and data.</div>
+                        <div style={{ fontSize:12, color:T.inkm, marginBottom:10 }}>Switch to our Starter plan at $59/mo and keep your contacts and data.</div>
                         <button onClick={()=>{ setShowCancelFlow(false); setAppView("pricing"); }} style={{ fontSize:12, fontWeight:600, padding:"6px 14px", background:T.green, border:"none", borderRadius:4, color:"#fff", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>View Starter plan →</button>
                       </div>
                       <div style={{ display:"flex", gap:10 }}>
@@ -2661,49 +2663,19 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                     </>
                   )}
 
-                  {/* STEP 4 — Final confirm with password */}
-                  {cancelStep===4 && !cancelComplete && (
+                  {/* STEP 4 — Hand off to Stripe Customer Portal for the real cancellation */}
+                  {cancelStep===4 && (
                     <>
-                      <div style={{ fontSize:22, fontFamily:"'Instrument Serif',serif", color:T.ink, marginBottom:6 }}>Confirm cancellation</div>
-                      <div style={{ fontSize:13, color:T.inkm, marginBottom:6, lineHeight:1.7 }}>Please re-enter your password to confirm. Your account will remain active until <strong>{activeBilling.nextBill.date}</strong>.</div>
-                      <div style={{ background:T.redl, border:`1px solid ${T.redb}`, borderRadius:5, padding:"10px 14px", marginBottom:16, fontSize:12, color:T.red }}>
-                        ⚠ This action cannot be undone. All team members will be notified by email.
-                      </div>
-                      <div style={{ marginBottom:16 }}>
-                        <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:6 }}>Your password</label>
-                        <input type="password" value={cancelPassword} onChange={e=>setCancelPassword(e.target.value)} placeholder="Enter your password to confirm" style={{ width:"100%", padding:"10px 12px", background:T.paper, border:`1px solid ${cancelError?T.red:T.border}`, borderRadius:5, color:T.ink, fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:"none", boxSizing:"border-box" }} />
-                        {cancelError && <div style={{ fontSize:12, color:T.red, marginTop:4 }}>{cancelError}</div>}
+                      <div style={{ fontSize:22, fontFamily:"'Instrument Serif',serif", color:T.ink, marginBottom:6 }}>Finish cancelling in Stripe</div>
+                      <div style={{ fontSize:13, color:T.inkm, marginBottom:16, lineHeight:1.7 }}>Cancellation is completed through our secure billing portal. Sign in with <strong>{currentUser?.email}</strong>, then choose <strong>Cancel subscription</strong>. Your plan stays active until the end of the current billing period.</div>
+                      <div style={{ background:T.paper, border:`1px solid ${T.border}`, borderRadius:5, padding:"10px 14px", marginBottom:16, fontSize:12, color:T.inkm }}>
+                        You'll receive an email confirmation from Stripe once the cancellation is complete. Your data is preserved for 30 days.
                       </div>
                       <div style={{ display:"flex", gap:10 }}>
-                        <button onClick={()=>{ setCancelStep(3); setCancelError(""); }} style={{ flex:1, padding:"10px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:5, color:T.inkl, fontWeight:500, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>← Back</button>
-                        <button onClick={async()=>{
-                          if (!cancelPassword) { setCancelError("Please enter your password."); return; }
-                          // Verify password by re-authenticating with Supabase
-                          const { error } = await sb.auth.signInWithPassword({ email: currentUser.email, password: cancelPassword });
-                          if (error) { setCancelError("Incorrect password. Please try again."); return; }
-                          // Password correct — mark as cancelled
-                          setCancelError("");
-                          setCancelComplete(true);
-                          // In production: call Stripe to cancel subscription
-                          // await stripe.subscriptions.cancel(subscriptionId);
-                        }} style={{ flex:1, padding:"10px", background:T.red, border:"none", borderRadius:5, color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Cancel my subscription</button>
+                        <button onClick={()=>setCancelStep(3)} style={{ flex:1, padding:"10px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:5, color:T.inkl, fontWeight:500, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>← Back</button>
+                        <button onClick={()=>{ window.open(STRIPE_PORTAL_URL, "_blank", "noopener"); setShowCancelFlow(false); setCancelStep(1); setCancelReason(""); }} style={{ flex:1, padding:"10px", background:T.red, border:"none", borderRadius:5, color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Continue to Stripe to cancel →</button>
                       </div>
                     </>
-                  )}
-
-                  {/* COMPLETE */}
-                  {cancelComplete && (
-                    <div style={{ textAlign:"center", padding:"20px 0" }}>
-                      <div style={{ fontSize:40, marginBottom:16 }}>✓</div>
-                      <div style={{ fontSize:22, fontFamily:"'Instrument Serif',serif", color:T.ink, marginBottom:8 }}>Cancellation confirmed</div>
-                      <div style={{ fontSize:13, color:T.inkm, lineHeight:1.7, marginBottom:20 }}>
-                        Your account will remain active until <strong>{activeBilling.nextBill.date}</strong>. You will receive a confirmation email shortly. All team members have been notified.
-                      </div>
-                      <div style={{ fontSize:12, color:T.inkm, background:T.paper, borderRadius:5, padding:"10px 14px", marginBottom:20, textAlign:"left" }}>
-                        <strong>Changed your mind?</strong> Email <span style={{ color:T.green }}>support@zelvarix.ai</span> within 24 hours to reactivate your account with no data loss.
-                      </div>
-                      <button onClick={()=>{ setShowCancelFlow(false); setCancelStep(1); setCancelComplete(false); setCancelReason(""); setCancelPassword(""); }} style={{ padding:"10px 24px", background:T.ink, border:"none", borderRadius:5, color:T.cream, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Close</button>
-                    </div>
                   )}
 
                 </div>
@@ -2793,7 +2765,10 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                   <div style={{ fontSize:13, fontWeight:600, color:T.red, marginBottom:2 }}>Cancel subscription</div>
                   <div style={{ fontSize:12, color:T.inkm }}>Only the account Admin can cancel. Your data is preserved for 30 days after cancellation.</div>
                 </div>
-                <button onClick={()=>{ setShowCancelFlow(true); setCancelStep(1); setCancelComplete(false); setCancelReason(""); setCancelPassword(""); setCancelError(""); }} style={{ padding:"8px 16px", background:"#fff", border:`1px solid ${T.redb}`, borderRadius:5, color:T.red, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>Cancel plan</button>
+                <div style={{ display:"flex", gap:10, flexShrink:0 }}>
+                  <button onClick={()=>window.open(STRIPE_PORTAL_URL, "_blank", "noopener")} style={{ padding:"8px 16px", background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, color:T.ink, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Manage billing</button>
+                  <button onClick={()=>{ setShowCancelFlow(true); setCancelStep(1); setCancelReason(""); setCancelError(""); }} style={{ padding:"8px 16px", background:"#fff", border:`1px solid ${T.redb}`, borderRadius:5, color:T.red, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Cancel plan</button>
+                </div>
               </div>
             ) : (
               <div style={{ marginTop:24, padding:"14px 18px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:6 }}>
