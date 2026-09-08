@@ -474,6 +474,7 @@ export default function App() {
   const [pdlError, setPdlError]         = useState(null);
   const [pdlPage, setPdlPage]           = useState(1);
   const [pdlHasMore, setPdlHasMore]     = useState(false);
+  const [pdlScrollToken, setPdlScrollToken] = useState(null); // PDL pagination cursor for "Load more"
   const [useLiveData, setUseLiveData]   = useState(false);
   const debounceRef                     = useRef(null);
   const [lists, setLists]             = useState([{ id:1, name:"Hot Prospects Q2", count:3 }, { id:2, name:"Enterprise Targets", count:12 }]);
@@ -559,7 +560,8 @@ export default function App() {
     setPdlLoading(true);
     setPdlError(null);
     try {
-      const result = await searchPeople({ filters, query: searchQuery, page, pageSize: resultsPerSearch, companyKeyword: filters.companyKeyword || "", companyName: filters.companyName || "" });
+      // "Load more" continues the same PDL result set via scroll_token; a fresh search starts over
+      const result = await searchPeople({ filters, query: searchQuery, pageSize: resultsPerSearch, scrollToken: append ? pdlScrollToken : null, companyKeyword: filters.companyKeyword || "", companyName: filters.companyName || "" });
       // Strip email/phone — store in reveal cache, show in UI only after reveal
       const stripped = result.contacts.map(c => {
         if (c.email || c.phone) {
@@ -575,8 +577,14 @@ export default function App() {
           sb.from("teams").update({ searches_used: newSearchesUsed }).eq("id", sbTeam.id).then(() => {});
         }
       }
-      setPdlContacts(prev => append ? [...prev, ...stripped] : stripped);
+      setPdlContacts(prev => {
+        if (!append) return stripped;
+        // Never show the same contact twice, even if PDL repeats one across pages
+        const seen = new Set(prev.map(c => c.id));
+        return [...prev, ...stripped.filter(c => !seen.has(c.id))];
+      });
       setPdlTotal(result.total);
+      setPdlScrollToken(result.scrollToken || null);
       setPdlHasMore(result.hasMore);
       setPdlPage(page);
     } catch(err) {
@@ -584,7 +592,7 @@ export default function App() {
       // Don't reset to sample data — keep live mode active so user can retry
     }
     setPdlLoading(false);
-  }, [filters, searchQuery, filters.naicsCode?.code]);
+  }, [filters, searchQuery, filters.naicsCode?.code, pdlScrollToken, resultsPerSearch, searchesUsed, sbTeam]);
 
   // Close the "add to list" popover when clicking anywhere else
   useEffect(() => {
