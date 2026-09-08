@@ -504,6 +504,7 @@ export default function App() {
   const [resultsPerSearch, setResultsPerSearch] = useState(3);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [showTopUpModal, setShowTopUpModal]       = useState(false);
+  const [showChangePlanModal, setShowChangePlanModal] = useState(false); // in-app plan switcher for active subscribers
   const [topUpLoading, setTopUpLoading]           = useState(null); // pack id being purchased
   const [isDemo, setIsDemo]                     = useState(false);
   const [isPaidCustomer, setIsPaidCustomer]     = useState(false);
@@ -2695,7 +2696,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
 
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:28 }}>
               <SectionHeading label="Billing" sub="Plan, seats, and usage" />
-              <button onClick={()=>setAppView("pricing")} style={{ padding:"8px 16px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:4, color:T.green, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>↑ Upgrade plan</button>
+              <button onClick={()=>{ if (sbTeam?.plan) setShowChangePlanModal(true); else setAppView("pricing"); }} style={{ padding:"8px 16px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:4, color:T.green, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>{sbTeam?.plan ? "⇄ Change plan" : "↑ Upgrade plan"}</button>
             </div>
             {/* Plan */}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
@@ -2956,6 +2957,42 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
       )}
 
       {/* ── TOP-UP MODAL ─────────────────────────────────────────────────── */}
+      {/* ── CHANGE PLAN MODAL — active subscribers switch plans through Stripe (prorated), never a second checkout ── */}
+      {showChangePlanModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(26,24,20,.5)", zIndex:400, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }} onClick={()=>setShowChangePlanModal(false)}>
+          <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:32, width:"100%", maxWidth:640, boxShadow:`0 8px 40px ${T.shadowd}` }} onClick={e=>e.stopPropagation()}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20 }}>
+              <div>
+                <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.ink, marginBottom:4 }}>Change your plan</div>
+                <div style={{ fontSize:13, color:T.inkm }}>Upgrades take effect immediately and are prorated. Downgrades apply at your next billing date.</div>
+              </div>
+              <button onClick={()=>setShowChangePlanModal(false)} style={{ background:"none", border:"none", fontSize:20, color:T.inkm, cursor:"pointer" }}>×</button>
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:20 }}>
+              {PLANS.filter(p => p.id !== "enterprise").map(plan => {
+                const isCurrent = plan.id === sbTeam?.plan;
+                const price = plan.annualOnly ? `$${plan.yearlyPrice}` : `$${plan.monthlyPrice}`;
+                const per = plan.annualOnly ? "/mo, billed annually" : "/mo";
+                return (
+                  <div key={plan.id} style={{ border:`1.5px solid ${isCurrent ? T.green : T.border}`, background: isCurrent ? T.greenl : "#fff", borderRadius:8, padding:"16px 14px", textAlign:"center", position:"relative" }}>
+                    {isCurrent && <div style={{ position:"absolute", top:-9, left:"50%", transform:"translateX(-50%)", fontSize:10, fontWeight:700, letterSpacing:1, textTransform:"uppercase", background:T.green, color:"#fff", padding:"2px 8px", borderRadius:3 }}>Current plan</div>}
+                    <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:20, color:T.ink, marginTop:4 }}>{plan.name}</div>
+                    <div style={{ fontFamily:"'DM Mono',monospace", fontSize:22, color:T.green, marginTop:6 }}>{price}<span style={{ fontSize:11, color:T.inkm, fontFamily:"'DM Sans',sans-serif" }}>{per}</span></div>
+                    <div style={{ fontSize:12, color:T.inkm, marginTop:8, lineHeight:1.6 }}>{plan.credits} reveals<br />{plan.searches} searches<br />{plan.maxSeats} {plan.maxSeats===1?"seat":"seats"}</div>
+                    <button disabled={isCurrent} onClick={()=>{ window.open(STRIPE_PORTAL_URL, "_blank", "noopener"); setShowChangePlanModal(false); }} style={{ marginTop:14, width:"100%", padding:"8px", background: isCurrent ? T.paperd : T.green, border:"none", borderRadius:5, color: isCurrent ? T.inkmut : "#fff", fontWeight:600, fontSize:12, cursor: isCurrent ? "default" : "pointer", fontFamily:"'DM Sans',sans-serif" }}>{isCurrent ? "Your plan" : `Switch to ${plan.name} →`}</button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ background:T.paper, border:`1px solid ${T.border}`, borderRadius:6, padding:"12px 16px", fontSize:12, color:T.inkm, lineHeight:1.6 }}>
+              Plan changes are completed in our secure billing portal. Sign in with <strong>{currentUser?.email}</strong>, choose <strong>Update plan</strong>, and your new credits will appear here within a minute. Need more than Team? <span style={{ color:T.green, fontWeight:600 }}>support@zelvarix.ai</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showTopUpModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(26,24,20,.5)", zIndex:400, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }} onClick={()=>setShowTopUpModal(false)}>
           <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:32, width:"100%", maxWidth:440, boxShadow:`0 8px 40px ${T.shadowd}` }} onClick={e=>e.stopPropagation()}>
