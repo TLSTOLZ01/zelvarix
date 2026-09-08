@@ -1,91 +1,3076 @@
-const PDL_PROXY = '/api/pdl-search';
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { searchPeople, enrichPerson } from "./pdl-integration.js";
+import { createClient } from "@supabase/supabase-js";
 
-export function searchPeople(options) {
-  const filters     = (options && options.filters)     || {};
-  const query       = (options && options.query)       || '';
-  const pageSize    = (options && options.pageSize)    || 5;
-  const scrollToken = (options && options.scrollToken) || null;
-  const naicsCodes  = (options && options.naicsCodes)  || [];
+// ─── SUPABASE CLIENT ─────────────────────────────────────────────────────────
+const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL || "https://zeuvisaieeswhvddmyje.supabase.co";
+const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_uJdrzhgEpbY8OW-1sgdnvw_EPifiqor";
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
+// Stripe Customer Portal (Live) — customers update payment method, switch plans, or cancel here
+const STRIPE_PORTAL_URL = "https://billing.stripe.com/p/login/eVq9AUc6K8Ui0Ize9j2Ji00";
 
-  const body = {
-    size: pageSize,
-    filters: filters,
-    query: query,
-    naics_codes: naicsCodes,
+// ─── APOLLO / AI CONFIG ──────────────────────────────────────────────────────
+const ANTHROPIC_MODEL = "claude-sonnet-4-6";
+const STRIPE_PUB_KEY   = "pk_test_51Tp9If4J6FrtuXSsfpSZJNnN5fZKLO7sy0V7XI8uPJlJGsuSvtTcuqA7KVoMW6tGbHdWWIPAkrHcHtEmpUxodtWr00AJ8iZyED";
+
+// ── ANALYTICS & MONITORING ───────────────────────────────────────────────────
+const GA_MEASUREMENT_ID = 'G-L19SG7QRWX';
+
+// ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
+const T = {
+  cream:    "#faf8f4",
+  paper:    "#f3f0ea",
+  paperd:   "#e8e3d9",
+  ink:      "#1a1814",
+  inkl:     "#3d3a35",
+  inkm:     "#7a7570",
+  inkmut:   "#b0aaa2",
+  green:    "#1a5c3a",
+  greenl:   "#e8f3ec",
+  greenm:   "#2d7a52",
+  greenb:   "#a8d4b8",
+  amber:    "#c47b1a",
+  amberl:   "#fdf3e3",
+  amberb:   "#f0c87a",
+  red:      "#b83232",
+  redl:     "#fdeaea",
+  redb:     "#e8a0a0",
+  border:   "#ddd8cf",
+  borderd:  "#ccc5b8",
+  shadow:   "rgba(26,24,20,0.08)",
+  shadowd:  "rgba(26,24,20,0.14)",
+};
+
+// ─── MOCK DATA ────────────────────────────────────────────────────────────────
+const INDUSTRY_GROUPS = [
+  { group: "Aerospace & Defense", options: ["Airlines & Aviation","Aviation & Aerospace","Defense & Space","Military"] },
+  { group: "Agriculture", options: ["Farming","Horticulture","Ranching","Tobacco"] },
+  { group: "Apparel & Fashion", options: ["Apparel & Fashion","Textiles"] },
+  { group: "Automotive", options: ["Automotive"] },
+  { group: "Chemicals & Materials", options: ["Chemicals","Plastics"] },
+  { group: "Consumer Goods & Retail", options: ["Consumer Goods","Luxury Goods & Jewelry","Retail","Sporting Goods"] },
+  { group: "Education & Training", options: ["E-Learning","Education Management","Higher Education","Libraries","Primary/Secondary Education"] },
+  { group: "Electronics & Hardware", options: ["Computer Hardware","Consumer Electronics","Electrical & Electronic Manufacturing","Semiconductors"] },
+  { group: "Energy & Utilities", options: ["Oil & Energy","Utilities"] },
+  { group: "Entertainment", options: ["Animation","Computer Games","Entertainment","Motion Pictures & Film","Music","Performing Arts","Sports"] },
+  { group: "Finance & Banking", options: ["Banking","Capital Markets","Financial Services","Investment Banking","Investment Management","Venture Capital & Private Equity"] },
+  { group: "Food & Beverage", options: ["Dairy","Food & Beverages","Food Production","Restaurants","Wine and Spirits"] },
+  { group: "Government", options: ["Government Administration","Law Enforcement","Public Policy","Public Safety"] },
+  { group: "Health & Wellness", options: ["Alternative Medicine","Health, Wellness & Fitness","Hospital & Health Care","Medical Devices","Medical Practice","Mental Health Care"] },
+  { group: "Hospitality & Tourism", options: ["Events Services","Hospitality","Leisure, Travel & Tourism"] },
+  { group: "Insurance", options: ["Insurance"] },
+  { group: "Internet & E-Commerce", options: ["E-Commerce","Internet"] },
+  { group: "Manufacturing & Engineering", options: ["Civil Engineering","Industrial Automation","Machinery","Mechanical or Industrial Engineering","Shipbuilding"] },
+  { group: "Marketing & Media", options: ["Broadcast Media","Marketing and Advertising","Media Production","Online Media","Publishing"] },
+  { group: "Non-Profit", options: ["Nonprofit Organization Management","Philanthropy","Religious Institutions"] },
+  { group: "Pharmaceuticals", options: ["Biotechnology","Nanotechnology","Pharmaceuticals"] },
+  { group: "Professional Services", options: ["Accounting","Human Resources","Law Practice","Legal Services","Management Consulting","Staffing and Recruiting"] },
+  { group: "Real Estate & Construction", options: ["Architecture & Planning","Commercial Real Estate","Construction","Facilities Services","Real Estate"] },
+  { group: "Software & IT", options: ["Computer & Network Security","Computer Software","Information Technology and Services","SaaS","Software Development"] },
+  { group: "Telecommunications", options: ["Computer Networking","Telecommunications","Wireless"] },
+  { group: "Transportation & Logistics", options: ["Logistics & Supply Chain","Package/Freight Delivery","Transportation/Trucking/Railroad","Warehousing"] },
+  { group: "Wholesale", options: ["Business Supplies and Equipment","Import and Export","Wholesale"] },
+];
+
+// ─── PDL INDUSTRY LIST ───────────────────────────────────────────────────────
+const PDL_INDUSTRIES = [
+  "accounting","airlines/aviation","alternative medicine","animation",
+  "apparel & fashion","architecture & planning","arts and crafts","automotive",
+  "aviation & aerospace","banking","biotechnology","broadcast media",
+  "building materials","business supplies and equipment","capital markets",
+  "chemicals","civic & social organization","civil engineering",
+  "computer & network security","computer games","computer hardware",
+  "computer networking","computer software","construction","consumer electronics",
+  "consumer goods","consumer services","cosmetics","dairy","defense & space",
+  "design","e-learning","education management","electrical/electronic manufacturing",
+  "entertainment","environmental services","events services","facilities services",
+  "farming","financial services","food & beverages","food production","furniture",
+  "gambling & casinos","government administration","graphic design",
+  "health, wellness and fitness","higher education","hospital & health care",
+  "hospitality","human resources","import and export","individual & family services",
+  "industrial automation","information technology and services","insurance",
+  "internet","investment banking","investment management","law enforcement",
+  "law practice","legal services","leisure, travel & tourism","libraries",
+  "logistics & supply chain","luxury goods & jewelry","machinery",
+  "management consulting","maritime","marketing and advertising",
+  "mechanical or industrial engineering","media production","medical devices",
+  "medical practice","mental health care","military","mining & metals",
+  "motion pictures and film","museums and institutions","music","nanotechnology",
+  "newspapers","nonprofit organization management","oil & energy","online media",
+  "outsourcing/offshoring","package/freight delivery","paper & forest products",
+  "performing arts","pharmaceuticals","philanthropy","plastics",
+  "primary/secondary education","printing","professional training & coaching",
+  "public policy","public relations and communications","public safety","publishing",
+  "real estate","recreational facilities and services","religious institutions",
+  "renewables & environment","research","restaurants","retail",
+  "security and investigations","semiconductors","shipbuilding","sporting goods",
+  "sports","staffing and recruiting","supermarkets","telecommunications","textiles",
+  "tobacco","transportation/trucking/railroad","utilities",
+  "venture capital & private equity","veterinary","warehousing","wholesale",
+  "wine and spirits","wireless","writing and editing",
+];
+
+// ─── PDL INDUSTRY SEARCH COMPONENT ──────────────────────────────────────────
+function IndustrySearch({ value, onChange }) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function handle(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  const matches = query.length < 2 ? [] : PDL_INDUSTRIES.filter(n =>
+    n.toLowerCase().includes(query.toLowerCase())
+  ).slice(0, 8);
+
+  function select(item) {
+    setQuery("");
+    setOpen(false);
+    onChange(item);
+  }
+
+  function clear() {
+    setQuery("");
+    onChange(null);
+  }
+
+  return (
+    <div ref={ref} style={{ position:"relative" }}>
+      {value ? (
+        <div style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 8px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:4 }}>
+          <span style={{ fontSize:11, color:T.inkl, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", textTransform:"capitalize" }}>{value}</span>
+          <button onClick={clear} style={{ background:"none", border:"none", color:T.inkm, cursor:"pointer", fontSize:14, lineHeight:1, padding:0, flexShrink:0 }}>×</button>
+        </div>
+      ) : (
+        <input
+          className="input-base"
+          value={query}
+          onChange={e=>{ setQuery(e.target.value); setOpen(true); }}
+          onFocus={()=>setOpen(true)}
+          onKeyDown={e=>{
+            if (e.key === "Enter" && query.trim().length > 0) {
+              e.preventDefault();
+              select(query.trim());
+            }
+          }}
+          placeholder="Search industry…"
+          style={{ fontSize:12, padding:"7px 10px" }}
+        />
+      )}
+      {open && matches.length > 0 && (
+        <div style={{ position:"absolute", top:"calc(100% + 2px)", left:0, right:0, background:"#fff", border:`1px solid ${T.border}`, borderRadius:4, boxShadow:`0 4px 16px ${T.shadowd}`, zIndex:200, maxHeight:220, overflowY:"auto" }}>
+          {matches.map(item => (
+            <button key={item} onClick={()=>select(item)} style={{ width:"100%", display:"flex", alignItems:"center", padding:"8px 10px", background:"none", border:"none", borderBottom:`1px solid ${T.border}`, cursor:"pointer", textAlign:"left", fontFamily:"'DM Sans',sans-serif", fontSize:12, color:T.inkl, textTransform:"capitalize" }}>
+              {item}
+            </button>
+          ))}
+        </div>
+      )}
+      {open && query.length >= 2 && matches.length === 0 && (
+        <div style={{ position:"absolute", top:"calc(100% + 2px)", left:0, right:0, background:"#fff", border:`1px solid ${T.border}`, borderRadius:4, padding:"10px", fontSize:12, color:T.inkmut, zIndex:200 }}>
+          No industries found for "{query}"
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+const COMPANY_SIZES = ["Any Size","Self-Employed","1-10","11-50","51-200","201-500","501-1,000","1,001-5,000","5,001-10,000","10,001+"];
+const SENIORITY    = ["Any Seniority","Owner","Founder","C-Suite","Partner","VP","Head","Director","Manager","Senior","Entry-Level","Intern"];
+const DEPARTMENTS  = ["Any Department","Accounting","Administrative","Business Development","Consulting","Engineering","Finance","Healthcare Services","Human Resources","Information Technology","Legal","Marketing","Operations","Product Management","Purchasing","Research","Sales","Support"];
+const REVENUES     = ["Any Revenue","<$1M","$1M-$5M","$5M-$10M","$10M-$25M","$25M-$50M","$50M-$100M","$100M-$250M","$250M-$500M","$500M+"];
+
+const US_STATES = [
+  "Any State",
+  "Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut",
+  "Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa",
+  "Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan",
+  "Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada",
+  "New Hampshire","New Jersey","New Mexico","New York","North Carolina",
+  "North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island",
+  "South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont",
+  "Virginia","Washington","West Virginia","Wisconsin","Wyoming"
+];
+
+const ROLE_PERMISSIONS = {
+  admin:   { canExport:true,  canInvite:true,  canManageLists:true,  canViewTeam:true,  canManageBilling:true,  canSearch:true, label:"Admin",    color:T.green,  bg:T.greenl,  border:T.greenb },
+  manager: { canExport:true,  canInvite:true,  canManageLists:true,  canViewTeam:true,  canManageBilling:false, canSearch:true, label:"Manager",  color:T.amber,  bg:T.amberl,  border:T.amberb },
+  rep:     { canExport:true,  canInvite:false, canManageLists:true,  canViewTeam:false, canManageBilling:false, canSearch:true, label:"Sales Rep", color:T.inkl,   bg:T.paper,   border:T.borderd },
+  viewer:  { canExport:false, canInvite:false, canManageLists:false, canViewTeam:false, canManageBilling:false, canSearch:true, label:"Viewer",   color:T.inkm,   bg:T.cream,   border:T.border },
+};
+
+const MOCK_CONTACTS = [
+  { id:1,  name:"Sarah Chen",          title:"VP of Sales",                department:"Sales",      seniority:"VP",       company:"Nexora Technologies",       industry:"SaaS",                               location:"San Francisco, CA", email:"s.chen@nexora.io",             phone:"+1 (415) 882-3310", employees:"501-1,000",    revenue:"$50M-$100M",  score:94, verified:true,  tags:["Decision Maker","Active Buyer"] },
+  { id:2,  name:"Marcus Webb",          title:"Chief Revenue Officer",       department:"Sales",      seniority:"C-Suite",  company:"Pulsar Analytics",           industry:"Information Technology and Services", location:"Austin, TX",         email:"m.webb@pulsaranalytics.com",   phone:"+1 (512) 447-9921", employees:"201-500",      revenue:"$10M-$50M",   score:88, verified:true,  tags:["C-Suite","High Intent"] },
+  { id:3,  name:"Priya Nair",           title:"Director of Marketing",       department:"Marketing",  seniority:"Director", company:"CloudVault Inc",              industry:"Computer Software",                  location:"New York, NY",       email:"p.nair@cloudvault.com",         phone:"+1 (646) 334-7782", employees:"1,001-5,000",  revenue:"$100M+",      score:81, verified:true,  tags:["Marketing Leader"] },
+  { id:4,  name:"Derek Liu",            title:"CEO & Co-Founder",            department:"Operations", seniority:"Founder",  company:"Stackr.io",                  industry:"Software Development",               location:"Seattle, WA",        email:"derek@stackr.io",               phone:"+1 (206) 771-3390", employees:"11-50",        revenue:"<$5M",        score:71, verified:true,  tags:["Founder","Early Stage"] },
+  { id:5,  name:"Tanya Okoye",          title:"Head of Cybersecurity",       department:"IT",         seniority:"Head",     company:"ShieldNet Systems",           industry:"Computer & Network Security",         location:"Washington, DC",     email:"t.okoye@shieldnet.com",         phone:"+1 (202) 556-8821", employees:"201-500",      revenue:"$10M-$50M",   score:85, verified:true,  tags:["Security","Decision Maker"] },
+  { id:6,  name:"James Thornton",       title:"Managing Director",           department:"Finance",    seniority:"Director", company:"Crestline Capital",           industry:"Investment Banking",                 location:"Chicago, IL",        email:"j.thornton@crestline.com",      phone:"+1 (312) 553-0044", employees:"51-200",       revenue:"$50M-$100M",  score:76, verified:false, tags:["Finance","High Value"] },
+  { id:7,  name:"Patricia Hollis",      title:"SVP Retail Banking",          department:"Finance",    seniority:"VP",       company:"Meridian Bank",               industry:"Banking",                            location:"Charlotte, NC",      email:"p.hollis@meridianbank.com",     phone:"+1 (704) 332-9900", employees:"5,001-10,000", revenue:"$500M+",      score:83, verified:true,  tags:["Enterprise","Decision Maker"] },
+  { id:8,  name:"Ronald Kwame",         title:"Portfolio Manager",           department:"Finance",    seniority:"Manager",  company:"Apex Investment Group",       industry:"Investment Management",               location:"New York, NY",       email:"r.kwame@apexig.com",            phone:"+1 (212) 774-5510", employees:"51-200",       revenue:"$50M-$100M",  score:79, verified:true,  tags:["Wealth Mgmt","Active Buyer"] },
+  { id:9,  name:"Denise Fuentes",       title:"CFO",                         department:"Finance",    seniority:"C-Suite",  company:"BlueStar Financial",          industry:"Financial Services",                 location:"Dallas, TX",         email:"d.fuentes@bluestarfin.com",     phone:"+1 (214) 889-4411", employees:"201-500",      revenue:"$50M-$100M",  score:91, verified:true,  tags:["C-Suite","Decision Maker"] },
+  { id:10, name:"Leila Farouk",         title:"SVP Enterprise Sales",        department:"Sales",      seniority:"VP",       company:"Meridian Health Systems",     industry:"Hospital & Health Care",              location:"Boston, MA",         email:"l.farouk@meridianhealth.com",   phone:"+1 (617) 229-8801", employees:"5,001-10,000", revenue:"$500M+",      score:92, verified:true,  tags:["Enterprise","Decision Maker"] },
+  { id:11, name:"Victor Patel",         title:"Chief Medical Officer",       department:"Healthcare", seniority:"C-Suite",  company:"Novara Health",               industry:"Medical Practice",                   location:"Houston, TX",        email:"v.patel@novarahealth.com",      phone:"+1 (713) 445-2200", employees:"1,001-5,000",  revenue:"$100M+",      score:89, verified:true,  tags:["C-Suite","Clinical Leader"] },
+  { id:12, name:"Amber Johansson",      title:"Director of Operations",      department:"Operations", seniority:"Director", company:"ClearPath Medical",           industry:"Medical Devices",                    location:"Minneapolis, MN",    email:"a.johansson@clearpath.com",     phone:"+1 (612) 338-7700", employees:"201-500",      revenue:"$10M-$50M",   score:77, verified:true,  tags:["Operations","MedTech"] },
+  { id:13, name:"Thomas Gruber",        title:"VP of Operations",            department:"Operations", seniority:"VP",       company:"Ironcast Manufacturing",      industry:"Machinery",                          location:"Detroit, MI",        email:"t.gruber@ironcast.com",         phone:"+1 (313) 567-4400", employees:"1,001-5,000",  revenue:"$100M+",      score:82, verified:true,  tags:["Manufacturing","Decision Maker"] },
+  { id:14, name:"Sandra Reeves",        title:"Director of Engineering",     department:"Engineering",seniority:"Director", company:"Apex Precision Parts",        industry:"Mechanical or Industrial Engineering", location:"Cleveland, OH",      email:"s.reeves@apexprecision.com",    phone:"+1 (216) 443-8800", employees:"201-500",      revenue:"$10M-$50M",   score:78, verified:true,  tags:["Engineering","High Intent"] },
+  { id:15, name:"Carlos Mendez",        title:"CEO",                         department:"Operations", seniority:"C-Suite",  company:"Skyline Development Group",   industry:"Commercial Real Estate",              location:"Miami, FL",          email:"c.mendez@skylinedev.com",       phone:"+1 (305) 774-8800", employees:"51-200",       revenue:"$50M-$100M",  score:88, verified:true,  tags:["CRE","Decision Maker"] },
+  { id:16, name:"Beth Larsson",         title:"VP of Acquisitions",          department:"Real Estate",seniority:"VP",       company:"Pinnacle Real Estate",        industry:"Real Estate",                        location:"Phoenix, AZ",        email:"b.larsson@pinnaclere.com",      phone:"+1 (602) 445-3300", employees:"201-500",      revenue:"$100M+",      score:81, verified:true,  tags:["Acquisitions","High Value"] },
+  { id:17, name:"Diana Osei",           title:"VP of Business Development",  department:"BD",         seniority:"VP",       company:"SolarEdge Energy Co",         industry:"Oil & Energy",                       location:"Austin, TX",         email:"d.osei@solaredge.co",           phone:"+1 (512) 334-2200", employees:"201-500",      revenue:"$10M-$50M",   score:87, verified:true,  tags:["Clean Energy","High Intent"] },
+  { id:18, name:"Jessica Park",         title:"Chief Marketing Officer",     department:"Marketing",  seniority:"C-Suite",  company:"Luminary Brands",             industry:"Consumer Goods",                     location:"Los Angeles, CA",    email:"j.park@luminarybrands.com",     phone:"+1 (310) 882-7700", employees:"501-1,000",    revenue:"$100M+",      score:90, verified:true,  tags:["CMO","CPG","Decision Maker"] },
+  { id:19, name:"Aaron Blake",          title:"VP of Merchandising",         department:"Operations", seniority:"VP",       company:"Harbor Retail Group",         industry:"Retail",                             location:"Seattle, WA",        email:"a.blake@harborretail.com",      phone:"+1 (206) 443-5500", employees:"1,001-5,000",  revenue:"$100M+",      score:77, verified:true,  tags:["Retail","Merchandising"] },
+  { id:20, name:"Roberto Escobar",      title:"VP of Sales",                 department:"Sales",      seniority:"VP",       company:"Mesa Food Group",             industry:"Food & Beverages",                   location:"Chicago, IL",        email:"r.escobar@mesafood.com",        phone:"+1 (312) 774-6600", employees:"201-500",      revenue:"$50M-$100M",  score:79, verified:true,  tags:["Food Bev","Distributor"] },
+  { id:21, name:"Angela Torres",        title:"VP of Partnerships",          department:"BD",         seniority:"VP",       company:"EduPath Inc",                 industry:"E-Learning",                         location:"Boston, MA",         email:"a.torres@edupathlearn.com",     phone:"+1 (617) 663-2200", employees:"51-200",       revenue:"$10M-$50M",   score:76, verified:true,  tags:["EdTech","Partnerships"] },
+  { id:22, name:"Fiona Adeyemi",        title:"Director of Enterprise Sales",department:"Sales",      seniority:"Director", company:"NetCore Telecom",             industry:"Telecommunications",                 location:"Dallas, TX",         email:"f.adeyemi@netcoretel.com",      phone:"+1 (214) 663-7700", employees:"1,001-5,000",  revenue:"$100M+",      score:84, verified:true,  tags:["Telecom","Enterprise"] },
+  { id:23, name:"Harold Simmons",       title:"SVP Supply Chain",            department:"Operations", seniority:"VP",       company:"FastRoute Logistics",         industry:"Logistics & Supply Chain",            location:"Memphis, TN",        email:"h.simmons@fastroute.com",       phone:"+1 (901) 445-3300", employees:"1,001-5,000",  revenue:"$100M+",      score:85, verified:true,  tags:["Logistics","Supply Chain"] },
+  { id:24, name:"Paul Winters",         title:"VP Commercial Lines",         department:"Sales",      seniority:"VP",       company:"Cornerstone Insurance",       industry:"Insurance",                          location:"Hartford, CT",       email:"p.winters@cornerstoneins.com",  phone:"+1 (860) 445-9900", employees:"501-1,000",    revenue:"$100M+",      score:82, verified:true,  tags:["Insurance","Commercial"] },
+  { id:25, name:"Zoe Chambers",         title:"VP of Growth Marketing",      department:"Marketing",  seniority:"VP",       company:"Amplify Media Group",         industry:"Marketing and Advertising",           location:"New York, NY",       email:"z.chambers@amplifymedia.com",   phone:"+1 (212) 884-6600", employees:"51-200",       revenue:"$10M-$50M",   score:86, verified:true,  tags:["Growth","Performance Mktg"] },
+  { id:26, name:"Hannah Goldstein",     title:"Managing Partner",            department:"Consulting", seniority:"Partner",  company:"Goldstein & Associates",      industry:"Management Consulting",               location:"Chicago, IL",        email:"h.goldstein@g-assoc.com",       phone:"+1 (312) 552-7700", employees:"11-50",        revenue:"$5M-$10M",    score:80, verified:true,  tags:["Consulting","Partner"] },
+  { id:27, name:"Dr. Raj Subramaniam", title:"VP Clinical Development",      department:"Research",   seniority:"VP",       company:"GenVax Therapeutics",         industry:"Pharmaceuticals",                    location:"Cambridge, MA",      email:"r.subra@genvax.com",            phone:"+1 (617) 553-2200", employees:"201-500",      revenue:"$50M-$100M",  score:90, verified:true,  tags:["Pharma","Clinical"] },
+  { id:28, name:"Marco Ricci",          title:"VP Revenue Management",       department:"Finance",    seniority:"VP",       company:"Prestige Hotel Group",        industry:"Hospitality",                        location:"Las Vegas, NV",      email:"m.ricci@prestigehotels.com",    phone:"+1 (702) 445-7700", employees:"1,001-5,000",  revenue:"$100M+",      score:79, verified:true,  tags:["Hospitality","Revenue Mgmt"] },
+  { id:29, name:"Col. Steve Briggs",    title:"Director of Defense Programs",department:"Operations", seniority:"Director", company:"Sentinel Aerospace",          industry:"Defense & Space",                    location:"Huntsville, AL",     email:"s.briggs@sentinelaero.com",     phone:"+1 (256) 334-9900", employees:"1,001-5,000",  revenue:"$500M+",      score:87, verified:true,  tags:["Defense","Government"] },
+  { id:30, name:"Dan Kowalski",         title:"VP Fleet Sales",              department:"Sales",      seniority:"VP",       company:"NovaDrive Motors",            industry:"Automotive",                         location:"Detroit, MI",        email:"d.kowalski@novadrive.com",      phone:"+1 (313) 774-8800", employees:"5,001-10,000", revenue:"$500M+",      score:82, verified:true,  tags:["Auto","Fleet Sales"] },
+  { id:31, name:"Aisha Mensah",         title:"CTO",                         department:"IT",         seniority:"C-Suite",  company:"DataStream AI",               industry:"Computer Software",                  location:"Austin, TX",         email:"a.mensah@datastreamai.com",     phone:"+1 (512) 884-3300", employees:"51-200",       revenue:"$10M-$50M",   score:93, verified:true,  tags:["CTO","AI/ML","Decision Maker"] },
+  { id:32, name:"Ray Huang",            title:"VP Product Management",       department:"Product",    seniority:"VP",       company:"ChipLogic Semiconductors",    industry:"Semiconductors",                     location:"San Jose, CA",       email:"r.huang@chiplogic.com",         phone:"+1 (408) 774-9900", employees:"1,001-5,000",  revenue:"$100M+",      score:89, verified:true,  tags:["Semiconductors","Product"] },
+  { id:33, name:"Karen Oduya",          title:"Chief Underwriting Officer",  department:"Finance",    seniority:"C-Suite",  company:"Sentinel Life Group",         industry:"Insurance",                          location:"Omaha, NE",          email:"k.oduya@sentinellife.com",      phone:"+1 (402) 663-4400", employees:"1,001-5,000",  revenue:"$100M+",      score:88, verified:true,  tags:["C-Suite","Underwriting"] },
+  { id:34, name:"Oliver Grant",         title:"VP of Customer Success",      department:"Support",    seniority:"VP",       company:"PlatformOne",                 industry:"SaaS",                               location:"San Francisco, CA",  email:"o.grant@platformone.io",        phone:"+1 (415) 663-7700", employees:"201-500",       revenue:"$10M-$50M",   score:80, verified:true,  tags:["CS Leader","SaaS"] },
+];
+
+const MOCK_TEAM = [
+  { id:1, name:"Alex Rivera",  email:"alex.rivera@company.com",  role:"admin",   status:"active",  joined:"Jan 2026", lastActive:"Today",      avatar:"AR", searches:142, exports:28 },
+  { id:2, name:"Jordan Lee",   email:"jordan.lee@company.com",   role:"manager", status:"active",  joined:"Feb 2026", lastActive:"Today",      avatar:"JL", searches:98,  exports:19 },
+  { id:3, name:"Morgan Blake", email:"morgan.blake@company.com", role:"rep",     status:"active",  joined:"Feb 2026", lastActive:"Yesterday",  avatar:"MB", searches:74,  exports:11 },
+  { id:4, name:"Taylor Kim",   email:"taylor.kim@company.com",   role:"rep",     status:"active",  joined:"Mar 2026", lastActive:"2 days ago", avatar:"TK", searches:61,  exports:8  },
+  { id:5, name:"Casey Nguyen", email:"casey.nguyen@company.com", role:"viewer",  status:"active",  joined:"Mar 2026", lastActive:"1 week ago", avatar:"CN", searches:12,  exports:0  },
+  { id:6, name:"Drew Patel",   email:"drew.patel@company.com",   role:"rep",     status:"invited", joined:"—",        lastActive:"—",          avatar:"DP", searches:0,   exports:0  },
+];
+
+const PLANS = [
+  {
+    id:"starter", name:"Starter", tagline:"For solo reps and freelancers",
+    monthlyPrice:59, yearlyPrice:44, credits:20, maxSeats:1,
+    searches:30, resultsPerSearch:3,
+    badge:null, highlight:false,
+    features:["20 contact reveals/month","30 searches/month (3 results each)","Plain-English industry search","Company name & keyword filters","AI ice breakers & email drafts","My Lists (up to 5)","CSV export","Email support"],
+    missing:["Team seats","Bulk email generator","Priority support","API access"],
+  },
+  {
+    id:"pro", name:"Pro", tagline:"For growing sales teams",
+    monthlyPrice:99, yearlyPrice:74, credits:50, maxSeats:10,
+    searches:50, resultsPerSearch:5,
+    badge:"Most Popular", highlight:true,
+    features:["50 shared reveals/month","50 searches/month (5 results each)","All search filters","CSV export (bulk & selective)","Full AI panel — ice breakers, scoring, emails","Bulk AI email generator (up to 10 at once)","Unlimited lists","Team management & roles","Priority support"],
+    missing:["Custom reveal pools per seat","Dedicated account manager","SSO / SAML"],
+  },
+  {
+    id:"team", name:"Team", tagline:"For scaling revenue orgs",
+    monthlyPrice:null, yearlyPrice:249, credits:100, maxSeats:50,
+    searches:80, resultsPerSearch:10, annualOnly:true,
+    badge:"Best Value", highlight:false,
+    features:["100 shared reveals/month","80 searches/month (10 results each)","Everything in Pro","Custom reveal pools per seat","Buyer intent signals","Job change tracking","Chrome extension","API access (full)","Zapier integration","Dedicated account manager","SSO / SAML","SLA-backed uptime"],
+    missing:[],
+  },
+  {
+    id:"enterprise", name:"Enterprise", tagline:"For large orgs with custom needs",
+    monthlyPrice:null, yearlyPrice:null, credits:null, maxSeats:null,
+    searches:null, resultsPerSearch:null,
+    badge:null, highlight:false,
+    features:["Unlimited reveals & seats","Everything in Team","Custom data SLA","Org chart mapping","Custom AI models","White-label option","On-premise deployment","24/7 phone support","Custom contract & invoicing"],
+    missing:[],
+  },
+];
+
+const STRIPE_PLAN_IDS = {
+  starter:      'price_1Tp9RC4J6FrtuXSshunrnSps',
+  pro:          'price_1Tp9Rp4J6FrtuXSsZ4bzJSLL',
+  team:         'price_1Tp9aH4J6FrtuXSshgeFlnj5',
+  topup_small:  'price_1Tp9lv4J6FrtuXSspfPkDdt8',
+  topup_medium: 'price_1Tp9oa4J6FrtuXSsjhtrq0fg',
+  topup_large:  'price_1Tp9pF4J6FrtuXSs6eVdqaFS',
+};
+
+const TOPUP_PACKS = [
+  { id:"small",  label:"Small Pack",  reveals:10, searches:10, price:9,  priceStr:"$9" },
+  { id:"medium", label:"Medium Pack", reveals:25, searches:25, price:19, priceStr:"$19" },
+  { id:"large",  label:"Large Pack",  reveals:50, searches:50, price:35, priceStr:"$35" },
+];
+
+const FAQS = [
+  { q:"What is a reveal?", a:"A reveal is when you click to see a contact's verified email and phone number. Browsing search results is always free — you only spend a reveal when you want the actual contact details." },
+  { q:"What is a search?", a:"A search is one query to our contact database. Each search returns 3–10 results depending on your plan. Reveals come from those results — you choose which contacts are worth revealing." },
+  { q:"Do unused reveals roll over?", a:"Reveals and searches reset monthly on your billing date. They do not roll over, so use them each month for maximum value." },
+  { q:"Can I change plans anytime?", a:"Yes for Starter and Pro — upgrade or downgrade anytime, no annual commitment required. The Team plan is annual-only and billed as $249/seat/month × 12 months. Downgrades from Team take effect at the end of your annual term." },
+  { q:"Is there a free trial?", a:"Every paid plan starts with a 7-day free trial — no credit card required. Full access to all features during the trial." },
+  { q:"How does team billing work?", a:"Pro and Team plans are billed per seat per month. Reveals are shared across the team as a single pool, managed by your Admin." },
+  { q:"What happens if we run out of reveals?", a:"You'll see a notification when reveals run low. Once exhausted, contact details are hidden until your monthly reset. Upgrade anytime for immediate access to more reveals." },
+  { q:"What's the difference between Saved contacts and Lists?", a:"Starring a contact (★) adds it to your quick catch-all Saved contacts. Lists let you organize contacts into named groups — click the + button on any contact to add it to one or more lists, and manage them from the Lists tab." },
+  { q:"Do you offer nonprofit or startup discounts?", a:"Yes. Verified nonprofits receive 40% off. Seed-stage startups (under $1M ARR) receive 30% off for the first year. Email support@zelvarix.ai." },
+];
+
+// ─── STYLES ───────────────────────────────────────────────────────────────────
+const GLOBAL_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: ${T.cream}; font-family: 'DM Sans', sans-serif; color: ${T.ink}; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: ${T.paperd}; border-radius: 3px; }
+  ::placeholder { color: ${T.inkmut}; }
+  select { appearance: none; }
+  @keyframes fadeIn  { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes slideIn { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+  @keyframes spin    { to   { transform: rotate(360deg); } }
+  @keyframes barFill { from { width:0 } to { width:100% } }
+  @keyframes pulse   { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+  .row-hover:hover { background: ${T.paper} !important; }
+  .btn-ghost:hover { background: ${T.paper} !important; }
+  .tag-chip { display:inline-flex; align-items:center; font-size:11px; font-weight:500; padding:2px 8px; border-radius:3px; background:${T.paper}; border:1px solid ${T.border}; color:${T.inkm}; letter-spacing:.2px; }
+  .input-base { width:100%; padding:9px 12px; background:${T.cream}; border:1px solid ${T.border}; border-radius:4px; color:${T.ink}; font-size:13px; font-family:'DM Sans',sans-serif; outline:none; transition:border-color .15s; }
+  .input-base:focus { border-color:${T.green}; box-shadow:0 0 0 2px ${T.greenl}; }
+`;
+
+// ─── SMALL COMPONENTS ─────────────────────────────────────────────────────────
+function ScorePill({ score }) {
+  const [c, bg] = score >= 90 ? [T.green, T.greenl] : score >= 75 ? [T.amber, T.amberl] : [T.red, T.redl];
+  return <span style={{ fontFamily:"'DM Mono',monospace", fontSize:11, fontWeight:500, color:c, background:bg, padding:"2px 7px", borderRadius:3, letterSpacing:.5 }}>{score}</span>;
+}
+
+function RoleBadge({ role }) {
+  const rp = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.rep;
+  return <span style={{ fontSize:10, fontWeight:600, color:rp.color, background:rp.bg, border:`1px solid ${rp.border}`, padding:"2px 7px", borderRadius:3, textTransform:"uppercase", letterSpacing:.8 }}>{rp.label}</span>;
+}
+
+function Spinner() {
+  return <div style={{ width:16, height:16, border:`2px solid ${T.paperd}`, borderTopColor:T.green, borderRadius:"50%", animation:"spin .7s linear infinite", display:"inline-block" }} />;
+}
+
+function SectionHeading({ label, sub }) {
+  return (
+    <div style={{ marginBottom:28 }}>
+      <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:28, color:T.ink, letterSpacing:-.5, lineHeight:1.1 }}>{label}</div>
+      {sub && <div style={{ fontSize:13, color:T.inkm, marginTop:5 }}>{sub}</div>}
+    </div>
+  );
+}
+
+// ─── AI PANEL ─────────────────────────────────────────────────────────────────
+function AIPanel({ contact, onClose, bookingLink }) {
+  const [tab, setTab]       = useState("ice");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult]   = useState("");
+
+  const prompts = {
+    ice:   `You are a world-class B2B sales coach. Write 3 highly personalized conversation starters for this prospect. Each 1-2 sentences. Specific, natural, no clichés.\n\nProspect: ${contact.name}, ${contact.title} at ${contact.company} (${contact.industry}, ${contact.location}, ${contact.employees} employees).\n\nFormat: numbered list, no intro.`,
+    score: `You are a B2B sales intelligence AI. Analyze this prospect:\n1. Lead score rationale (2-3 sentences for ${contact.score}/100)\n2. Top 3 buying signals\n3. One risk factor\n\nProspect: ${contact.name}, ${contact.title} at ${contact.company} (${contact.industry}, ${contact.revenue} revenue). Tags: ${contact.tags.join(", ")}\n\nBe direct and concise.`,
+    email: `Write a short personalized cold outreach email (under 120 words) from a sales rep at a B2B prospecting software company. Sound human, not salesy.\n\nProspect: ${contact.name}, ${contact.title} at ${contact.company} (${contact.industry}).\n\nEnd with a call to action to book a quick call.${bookingLink ? ` Use this booking link: ${bookingLink}` : ""}\n\nFormat:\nSubject: [subject]\n[body]`,
   };
 
-  if (scrollToken) body.scroll_token = scrollToken;
+  async function run(t) {
+    setTab(t); setResult(""); setLoading(true);
+    try {
+      const res = await fetch("/api/claude", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ model:ANTHROPIC_MODEL, max_tokens:1000, messages:[{ role:"user", content:prompts[t] }] }),
+      });
+      const d = await res.json();
+      setResult(d.content?.[0]?.text || "No response.");
+    } catch { setResult("Connection error — please retry."); }
+    setLoading(false);
+  }
 
-  return fetch(PDL_PROXY, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  }).then(function(res) {
-    if (!res.ok) throw new Error('PDL search failed: ' + res.status);
-    return res.json();
-  }).then(function(data) {
-    var people = data.data || [];
-    return {
-      contacts: people.map(function(p, i) { return mapPerson(p, i); }),
-      total: data.total || people.length,
-      scrollToken: data.scroll_token || null,
-      hasMore: !!(data.scroll_token),
-    };
+  useEffect(() => { run("ice"); }, []);
+
+  const tabs = [{ id:"ice", label:"Ice Breakers" }, { id:"score", label:"Score Analysis" }, { id:"email", label:"Draft Email" }];
+
+  return (
+    <div style={{ position:"fixed", top:0, right:0, bottom:0, width:400, background:T.cream, borderLeft:`1px solid ${T.border}`, zIndex:200, display:"flex", flexDirection:"column", boxShadow:`-6px 0 32px ${T.shadowd}` }}>
+      <div style={{ padding:"20px 24px 0", borderBottom:`1px solid ${T.border}`, paddingBottom:0 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+          <div>
+            <div style={{ fontSize:10, fontWeight:600, color:T.green, textTransform:"uppercase", letterSpacing:1.5, marginBottom:4 }}>AI Intelligence</div>
+            <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:20, color:T.ink }}>{contact.name}</div>
+            <div style={{ fontSize:12, color:T.inkm }}>{contact.title} · {contact.company}</div>
+          </div>
+          <button onClick={onClose} style={{ background:T.paper, border:`1px solid ${T.border}`, color:T.inkm, width:30, height:30, borderRadius:4, cursor:"pointer", fontSize:16, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+        </div>
+        <div style={{ display:"flex", gap:0 }}>
+          {tabs.map(t => (
+            <button key={t.id} onClick={() => run(t.id)} style={{ background:"none", border:"none", borderBottom:`2px solid ${tab===t.id ? T.green : "transparent"}`, padding:"8px 14px", fontSize:12, fontWeight:tab===t.id ? 600 : 400, color:tab===t.id ? T.green : T.inkm, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all .15s", whiteSpace:"nowrap" }}>{t.label}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", padding:24 }}>
+        {loading
+          ? <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:160, gap:12 }}><Spinner /><div style={{ fontSize:12, color:T.inkm }}>Generating analysis…</div></div>
+          : <div style={{ fontSize:13, lineHeight:1.85, color:T.inkl, whiteSpace:"pre-wrap" }}>{result}</div>
+        }
+      </div>
+      <div style={{ padding:16, borderTop:`1px solid ${T.border}` }}>
+        <button onClick={() => run(tab)} style={{ width:"100%", padding:"9px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>↺ Regenerate</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── UTILITIES ────────────────────────────────────────────────────────────────
+// Normalizes an email for trial-abuse comparison only — never used for login/auth.
+// Strips +alias tags on every domain, and strips dots from the local part on
+// Gmail/Googlemail (the only major providers where dots are ignored).
+function normalizeEmail(raw) {
+  if (!raw) return "";
+  let [local, domain] = raw.trim().toLowerCase().split("@");
+  if (!domain) return raw.trim().toLowerCase();
+  local = local.split("+")[0];
+  if (domain === "gmail.com" || domain === "googlemail.com") {
+    local = local.replace(/\./g, "");
+    domain = "gmail.com";
+  }
+  return `${local}@${domain}`;
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+export default function App() {
+  const [appView, setAppView]   = useState("splash");
+  const [authMode, setAuthMode] = useState("login");
+  const [loginData, setLoginData]   = useState({ email:"", password:"" });
+  const [signupData, setSignupData] = useState({ name:"", email:"", password:"", confirm:"" });
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [authError, setAuthError]   = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [splashDone, setSplashDone]   = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [sbTeam, setSbTeam]           = useState(null);   // live Supabase team row
+  const [sbLoading, setSbLoading]     = useState(false);  // global loading flag
+  const [sbReady, setSbReady]         = useState(false);  // session restore done
+  const [selectedPlan, setSelectedPlan] = useState(null);   // plan chosen on pricing page
+  const [pricingYearly, setPricingYearly] = useState(false);
+  const [openFaq, setOpenFaq] = useState(null);
+
+  // Main app state
+  const [view, setView]               = useState("discover");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filters, setFilters]         = useState({ pdlIndustry:"", companyName:"", companyKeyword:"", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" });
+  const [selectedContact, setSelectedContact] = useState(null);
+  const [aiContact, setAiContact]     = useState(null);
+  const [savedIds, setSavedIds]         = useState(new Set());
+  const [savedContacts, setSavedContacts] = useState([]);  // full contact objects
+  const [savedRowIds, setSavedRowIds]     = useState({});  // contact id -> supabase row id
+  const [pipelineStages, setPipelineStages] = useState({}); // contact id -> stage
+  const [draggedId, setDraggedId]         = useState(null);
+  const [dragOverStage, setDragOverStage] = useState(null);
+  const [contactForm, setContactForm]   = useState({ name:"", email:"", company:"", subject:"General inquiry", message:"" });
+  const [contactSent, setContactSent]   = useState(false);
+  const [contactSending, setContactSending] = useState(false);
+  const [contactError, setContactError] = useState("");
+  const [selectedForExport, setSelectedForExport] = useState(new Set());
+  const [selectMode, setSelectMode]   = useState(false);
+  const [pdlContacts, setPdlContacts]   = useState([]);
+  const [pdlTotal, setPdlTotal]         = useState(0);
+  const [pdlLoading, setPdlLoading]     = useState(false);
+  const [pdlError, setPdlError]         = useState(null);
+  const [pdlPage, setPdlPage]           = useState(1);
+  const [pdlHasMore, setPdlHasMore]     = useState(false);
+  const [pdlScrollToken, setPdlScrollToken] = useState(null); // PDL pagination cursor for "Load more"
+  const [useLiveData, setUseLiveData]   = useState(false);
+  const debounceRef                     = useRef(null);
+  const [lists, setLists]             = useState([{ id:1, name:"Hot Prospects Q2", count:3 }, { id:2, name:"Enterprise Targets", count:12 }]);
+  const [listMemberships, setListMemberships] = useState({}); // { [listId]: Set(contactIds) }
+  const [listContactData, setListContactData] = useState({}); // { [listId]: [contact objects] } — for the list detail view
+  const [listPickerFor, setListPickerFor] = useState(null); // contact object currently showing the add-to-list popover, or null
+  const [openListDetail, setOpenListDetail] = useState(null); // list object currently being viewed in detail, or null
+  const [teamMembers, setTeamMembers] = useState([{ id:1, name:"", email:"", role:"admin", status:"active", joined:"", lastActive:"Today", avatar:"", searches:0, exports:0 }]);
+  const [activeUserId, setActiveUserId] = useState(1);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [showCancelFlow, setShowCancelFlow]   = useState(false);
+  const [cancelStep, setCancelStep]           = useState(1);  // 1=warning 2=reason 3=offer 4=confirm
+  const [cancelReason, setCancelReason]       = useState("");
+  const [cancelPassword, setCancelPassword]   = useState("");
+  const [cancelError, setCancelError]         = useState("");
+  const [cancelComplete, setCancelComplete]   = useState(false);
+  const [bookingLink, setBookingLink]         = useState("");
+  const [revealCache, setRevealCache]         = useState({}); // pdlId -> { email, phone }
+  const [revealedIds, setRevealedIds]         = useState(new Set()); // contacts with revealed contact info
+  const [exportedIds, setExportedIds]         = useState(new Set()); // contacts exported to CSV
+  const [revealsUsed, setRevealsUsed]         = useState(0);
+  const [revealsTotal, setRevealsTotal]       = useState(20);
+  const [searchesUsed, setSearchesUsed]       = useState(0);
+  const [searchesTotal, setSearchesTotal]     = useState(30);
+  const [resultsPerSearch, setResultsPerSearch] = useState(3);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [showTopUpModal, setShowTopUpModal]       = useState(false);
+  const [topUpLoading, setTopUpLoading]           = useState(null); // pack id being purchased
+  const [isDemo, setIsDemo]                     = useState(false);
+  const [isPaidCustomer, setIsPaidCustomer]     = useState(false);
+  const [showSupportBot, setShowSupportBot]     = useState(false);
+  const [supportMessages, setSupportMessages]   = useState([
+    { role:"assistant", text:"Hi! I'm Zelvarix Support. How can I help you today?", id:1 }
+  ]);
+  const [supportInput, setSupportInput]         = useState("");
+  const [supportLoading, setSupportLoading]     = useState(false);
+  const supportEndRef                           = useRef(null);
+  const [bulkEmailContacts, setBulkEmailContacts] = useState([]);
+  const [bulkEmailResults, setBulkEmailResults]   = useState({});
+  const [bulkEmailLoading, setBulkEmailLoading]   = useState(false);
+  const [showBulkEmail, setShowBulkEmail]         = useState(false);
+  const [inviteRole, setInviteRole]   = useState("rep");
+  // ── Waitlist ("coming soon" landing page) state — declared unconditionally
+  // alongside all other hooks, even though only used on the /coming-soon route.
+  const [wlEmail, setWlEmail]           = useState("");
+  const [wlSubmitting, setWlSubmitting] = useState(false);
+  const [wlDone, setWlDone]             = useState(false);
+  const [wlError, setWlError]           = useState("");
+  // Dynamic billing derived from selected plan
+  const activePlan   = PLANS.find(p => p.id === selectedPlan) || PLANS[1]; // default Pro
+  const trialDaysLeft = (() => {
+    if (!sbTeam?.trial_end) return null;
+    const end = new Date(sbTeam.trial_end);
+    if (isNaN(end.getTime())) return null;
+    const now = new Date();
+    const diffMs = end.getTime() - now.getTime();
+    if (diffMs < 0) return null; // trial already ended — don't show a stale/negative count
+    return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  })();
+
+  const activeBilling = {
+    plan: activePlan.name,
+    // Zelvarix pricing is flat per team, not per seat — seat count reflects actual team size, price is the flat plan price
+    seats: { used: teamMembers.filter(m=>m.status==="active").length || 1, total: activePlan.maxSeats || 10, flatPrice: activePlan.annualOnly ? (activePlan.yearlyPrice||0) : (activePlan.monthlyPrice||0) },
+    credits: { used:revealsUsed || 0, total: revealsTotal || activePlan.credits || 20, resetDate:"Next billing date" },
+    nextBill: { date: sbTeam?.next_billing_date || "—", amount: activePlan.annualOnly ? (activePlan.yearlyPrice||0) : (activePlan.monthlyPrice||0) },
+    history: [], // Real billing history is not yet wired up to Stripe invoices — showing empty rather than fake data
+  };
+  const [onboardData, setOnboardData] = useState({ name:"", company:"", role:"", goal:"", referralSource:"", bookingLink:"" });
+
+  const activeUser = teamMembers.find(u => u.id === activeUserId) || teamMembers[0] || { role:"admin", name:"", avatar:"" };
+  const perms      = ROLE_PERMISSIONS[activeUser.role] || ROLE_PERMISSIONS.admin;
+
+  // Display name — always use real logged-in user from Supabase
+  const displayName   = currentUser ? (onboardData.name || currentUser.email.split("@")[0]) : (activeUser.name || "User");
+  const displayEmail  = currentUser ? currentUser.email : (activeUser.email || "");
+  const displayAvatar = displayName ? displayName.split(" ").map(n => n[0]).join("").slice(0,2).toUpperCase() : "U";
+
+  // Live PDL search function
+  const runPDLSearch = useCallback(async (page = 1, append = false) => {
+    setPdlLoading(true);
+    setPdlError(null);
+    try {
+      // "Load more" continues the same PDL result set via scroll_token; a fresh search starts over
+      const result = await searchPeople({ filters, query: searchQuery, pageSize: resultsPerSearch, scrollToken: append ? pdlScrollToken : null, companyKeyword: filters.companyKeyword || "", companyName: filters.companyName || "" });
+      // Strip email/phone — store in reveal cache, show in UI only after reveal
+      const stripped = result.contacts.map(c => {
+        if (c.email || c.phone) {
+          setRevealCache(prev => ({ ...prev, [c.id]: { email: c.email, phone: c.phone } }));
+        }
+        return { ...c, email: "", phone: "" };
+      });
+      // Track searches used
+      if (!append) {
+        const newSearchesUsed = searchesUsed + 1;
+        setSearchesUsed(newSearchesUsed);
+        if (sbTeam) {
+          sb.from("teams").update({ searches_used: newSearchesUsed }).eq("id", sbTeam.id).then(() => {});
+        }
+      }
+      setPdlContacts(prev => {
+        if (!append) return stripped;
+        // Never show the same contact twice, even if PDL repeats one across pages
+        const seen = new Set(prev.map(c => c.id));
+        return [...prev, ...stripped.filter(c => !seen.has(c.id))];
+      });
+      setPdlTotal(result.total);
+      setPdlScrollToken(result.scrollToken || null);
+      setPdlHasMore(result.hasMore);
+      setPdlPage(page);
+    } catch(err) {
+      setPdlError("Live search error — check your PDL API key or try again.");
+      // Don't reset to sample data — keep live mode active so user can retry
+    }
+    setPdlLoading(false);
+  }, [filters, searchQuery, filters.naicsCode?.code, pdlScrollToken, resultsPerSearch, searchesUsed, sbTeam]);
+
+  // Close the "add to list" popover when clicking anywhere else
+  useEffect(() => {
+    if (!listPickerFor) return;
+    const close = () => setListPickerFor(null);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [listPickerFor]);
+
+  // NOTE: Live search now only fires when the user explicitly clicks "Search" (or presses
+  // Enter in a filter field) — see the Search button in the filter sidebar. Auto-firing on
+  // every filter change used to burn a search credit per keystroke/dropdown change, which
+  // could silently exhaust someone's monthly allowance just from browsing filters.
+
+  // Mock data filtered locally
+  const mockFiltered = MOCK_CONTACTS.slice(0, 10).filter(c => {
+    const q = searchQuery.toLowerCase();
+    const mQ = !q || c.name.toLowerCase().includes(q) || c.company.toLowerCase().includes(q) || c.title.toLowerCase().includes(q) || c.industry.toLowerCase().includes(q) || c.location.toLowerCase().includes(q);
+    const mCK = !filters.companyKeyword || c.company.toLowerCase().includes(filters.companyKeyword.toLowerCase());
+    const mI = !filters.pdlIndustry || c.industry.toLowerCase().includes(filters.pdlIndustry.toLowerCase());
+    const mCN = !filters.companyName || c.company.toLowerCase().includes(filters.companyName.toLowerCase());
+    const mS = filters.size     === "Any Size"       || c.employees === filters.size;
+    const mSn= filters.seniority=== "Any Seniority"  || c.seniority === filters.seniority;
+    const mD = filters.department==="Any Department" || c.department === filters.department;
+    const mR = filters.revenue==="Any Revenue"   || c.revenue === filters.revenue;
+    return mQ && mI && mCN && mCK && mS && mSn && mD && mR;
   });
-}
 
-export function enrichPerson(contact) {
-  return Promise.resolve(contact);
-}
+  // Use live PDL data if toggled on, otherwise use mock
+  const filteredContacts = useLiveData ? pdlContacts : mockFiltered;
+  const sorted = [...filteredContacts].sort((a,b) => b.score - a.score);
+  const displayTotal = useLiveData ? pdlTotal : mockFiltered.length;
 
-function mapPerson(p, i) {
-  var exp = (p.experience && p.experience[0]) || {};
-  var co  = exp.company || {};
-  var lvl = (p.job_title_levels && p.job_title_levels[0]) || '';
-  var em  = (p.emails && p.emails[0]) || {};
-  var sm  = {
-    owner:'Owner', founder:'Founder', c_suite:'C-Suite',
-    partner:'Partner', vp:'VP', director:'Director',
-    manager:'Manager', senior:'Senior', entry:'Entry-Level', training:'Intern'
-  };
-  var score = 50;
-  if (em.valid) score += 15;
-  if (['c_suite','vp','owner','founder'].indexOf(lvl) > -1) score += 15;
-  if (['director','partner'].indexOf(lvl) > -1) score += 8;
-  if (p.phone_numbers && p.phone_numbers.length) score += 7;
-  if (p.linkedin_url) score += 3;
-  if (score > 99) score = 99;
-  return {
-    id:          p.id || ('pdl_' + i),
-    name:        p.full_name || 'Unknown',
-    title:       p.job_title || '',
-    company:     p.job_company_name || (co.name) || '',
-    industry:    p.job_company_industry || co.industry || '',
-    department:  p.job_title_role || '',
-    seniority:   sm[lvl] || 'Unknown',
-    location:    [p.location_locality, p.location_region, p.location_country].filter(Boolean).join(', '),
-    email:       em.address || '',
-    phone:       (p.phone_numbers && p.phone_numbers[0]) || '',
-    employees:   mapEmployees(p.job_company_employee_count),
-    revenue:     'Unknown',
-    score:       score,
-    verified:    !!(em.valid),
-    linkedin:    !!(p.linkedin_url),
-    tags:        [sm[lvl], p.job_company_industry].filter(Boolean),
-    _pdlId:      p.id,
-    _linkedinUrl: p.linkedin_url,
-  };
-}
+  const SUPPORT_SYSTEM_PROMPT = `You are a friendly and knowledgeable support agent for Zelvarix.ai, a B2B sales intelligence platform. Answer questions accurately and concisely. Here is everything you need to know:
 
-function mapEmployees(count) {
-  if (!count) return 'Unknown';
-  if (count <= 1)     return 'Self-Employed';
-  if (count <= 10)    return '1-10';
-  if (count <= 50)    return '11-50';
-  if (count <= 200)   return '51-200';
-  if (count <= 500)   return '201-500';
-  if (count <= 1000)  return '501-1,000';
-  if (count <= 5000)  return '1,001-5,000';
-  if (count <= 10000) return '5,001-10,000';
-  return '10,001+';
+PRODUCT OVERVIEW:
+Zelvarix is a B2B prospecting platform that helps sales teams find decision makers, get verified contact information, and generate AI-powered personalized outreach emails. It is built for small to medium businesses and individual sales reps. Zelvarix uses its own proprietary contact database of 1.3B+ profiles — do not mention or reference any third-party data providers under any circumstances.
+
+PLANS & PRICING:
+- Starter: $59/month flat — 1 seat, 30 searches (3 results each), 20 reveals per month
+- Pro: $99/month flat — up to 5 seats, 50 searches (5 results each), 50 reveals per month
+- Team: $249/month billed annually ($2,988/year) — up to 15 seats, 80 searches (10 results each), 100 reveals per month. Team is annual-only — no monthly option.
+- All plans share reveals as a team pool
+- Starter and Pro: cancel anytime, no annual commitment
+- Team: annual commitment only — cancels at end of annual term
+- 7-day free trial on Starter and Pro — no credit card required
+- Top-up packs available when reveals run out: Small ($9, +10 reveals), Medium ($19, +25 reveals), Large ($35, +50 reveals)
+
+HOW SEARCHES WORK:
+- Users filter by industry, company name, company keyword, size, seniority, department, state, city
+- Setting filters doesn't use a credit by itself — click the "Search" button (or press Enter in a text filter) to actually run the search
+- Sample Data mode shows demo contacts — no credits used
+- Live Data mode queries the Zelvarix proprietary contact database of 1.3B+ profiles
+- Each time you click Search (or press Enter) in Live Data mode, it counts as 1 search against your monthly allowance — adjusting filters afterward and clicking Search again counts as another search
+- Loading more results on the same search (via "Load more contacts") does not use an additional search credit
+- Results show name, title, company, location, seniority, and AI score
+
+HOW REVEALS WORK:
+- Contact email and phone are hidden by default in Live Data mode
+- Click the green "Reveal" button on any contact to see their email and phone
+- Each reveal uses 1 credit from your team's monthly reveal pool
+- Revealed contacts stay visible for the session
+- When reveals run out, an upgrade prompt appears
+- Reveals reset on your monthly billing date
+
+AI FEATURES:
+- AI Intelligence panel (✦ button): generates ice breakers, lead score analysis, and draft emails
+- Bulk email generator: select multiple contacts and generate personalized emails for all of them
+- Booking link: add your Calendly/Cal.com link in Settings and it auto-appears in AI-drafted emails
+- AI features use Claude AI (Anthropic)
+
+BOOKING LINK & CALENDLY SETUP:
+- A booking link is your personal meeting scheduling link (e.g. Calendly or Cal.com)
+- When set in Zelvarix Settings or during onboarding, it is automatically added to every AI-drafted outreach email
+- This lets prospects click directly to book a call with you — no back-and-forth emails needed
+- HOW TO SET UP CALENDLY (free):
+  1. Go to calendly.com and click Sign Up — it is free to start
+  2. Connect your Google Calendar or Outlook calendar
+  3. Create a new Event Type — choose "30 Minute Meeting" as a starting point
+  4. Give it a name like "Quick Call with [Your Name]"
+  5. Set your available hours (e.g. Mon-Fri 9am-5pm)
+  6. Click Save and you will get a link like: calendly.com/your-name/30min
+  7. Copy that link
+  8. Go to Zelvarix Settings tab, paste it in the Booking Link field, and click Save
+  9. From now on every AI-drafted email will include your booking link automatically
+- Cal.com is a free open-source alternative to Calendly — works the same way
+- You can also add or update your booking link anytime in the Settings tab
+- If you do not have a booking link, you can skip that step during onboarding and add it later
+
+PIPELINE & LISTS:
+- Star (☆) any contact to save them to your pipeline and to "Saved contacts" — a quick catch-all
+- Pipeline has 4 stages: New, Contacted, Qualified, Closed
+- Drag and drop contacts between stages
+- Lists let you organize contacts into named groups (e.g. "Q3 Prospects"). Click the + button next to the star on any contact to open the list picker, check which list(s) to add them to, or create a new list right from that popover
+- Click into a list from the Lists tab to see everyone in it, with options to view AI insights or remove them from that list
+- A contact must be saved (starred) before it can be added to a list — clicking + on an unsaved contact saves it automatically first
+
+TEAM FEATURES:
+- Invite team members with different roles: Admin, Manager, Sales Rep, Viewer
+- Credits are shared across the whole team
+- Admins can manage billing and team members
+
+BILLING:
+- Managed in the Billing tab
+- Cancel anytime — no penalties, data preserved for 30 days after cancellation
+- Re-authentication required to cancel (security measure)
+
+COMMON ISSUES:
+- "Live search error": Usually means the contact database is temporarily unavailable. Try again in a few minutes or contact support@zelvarix.ai
+- "No results found": Try broader filters — remove industry or location restrictions
+- Industry search: Type at least 2 characters to see industry suggestions, or press Enter to search your exact typed term even if it's not in the suggestions
+- Company keyword vs Company name: Company name searches for an exact company (e.g. "Chevron"). Company keyword does a broad match (e.g. "funeral" finds all funeral-related companies)
+- Reveals not working: Check your reveals remaining in Settings — if at 0, you need to upgrade
+- AI panel not generating: Check your internet connection and try regenerating
+
+CONTACT & ESCALATION:
+- Email: support@zelvarix.ai
+- For billing issues: billing@zelvarix.ai
+- Response time: within 1 business day
+- If you cannot resolve an issue through this chat, say so and direct the user to support@zelvarix.ai
+
+Always be friendly, concise, and helpful. If you don't know something, say so honestly and direct the user to support@zelvarix.ai.`;
+
+  async function sendSupportMessageText(text) {
+    if (!text.trim() || supportLoading) return;
+    const userMsg = { role:"user", text:text.trim(), id:Date.now() };
+    setSupportMessages(prev => {
+      const newMessages = [...prev, userMsg];
+      runSupportAPI(newMessages);
+      return newMessages;
+    });
+    setSupportLoading(true);
+  }
+
+  async function runSupportAPI(messages) {
+    try {
+      const history = messages
+        .filter(m => m.role === "user" || m.role === "assistant")
+        .map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.text }));
+      const res = await fetch("/api/claude", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({
+          model: ANTHROPIC_MODEL,
+          max_tokens: 500,
+          system: SUPPORT_SYSTEM_PROMPT,
+          messages: history,
+        }),
+      });
+      const data = await res.json();
+      const reply = data.content?.[0]?.text || "Sorry, I couldn't process that. Please email support@zelvarix.ai.";
+      setSupportMessages(prev => [...prev, { role:"assistant", text:reply, id:Date.now() }]);
+    } catch {
+      setSupportMessages(prev => [...prev, { role:"assistant", text:"Connection error. Please email support@zelvarix.ai for help.", id:Date.now() }]);
+    }
+    setSupportLoading(false);
+  }
+
+  async function sendSupportMessage() {
+    if (!supportInput.trim() || supportLoading) return;
+    const userMsg = { role:"user", text:supportInput.trim(), id:Date.now() };
+    setSupportMessages(prev => {
+      const newMessages = [...prev, userMsg];
+      runSupportAPI(newMessages);
+      return newMessages;
+    });
+    setSupportInput("");
+    setSupportLoading(true);
+  }
+
+  async function applyTopUp(pack) {
+    if (!currentUser) { setAppView("auth"); return; }
+    setTopUpLoading(pack.id);
+    try {
+      const packId = pack.id === 'small' ? 'topup_small' : pack.id === 'medium' ? 'topup_medium' : 'topup_large';
+      const res = await fetch("/api/stripe-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planId: packId,
+          userId: currentUser.id,
+          teamId: sbTeam?.id || null,
+          email: currentUser.email,
+        }),
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+      else alert("Error starting checkout. Please try again.");
+    } catch(err) {
+      console.error("Top-up error:", err);
+      alert("Error starting checkout. Please try again.");
+    }
+    setTopUpLoading(null);
+  }
+
+  async function revealContact(contact) {
+    // Check if already revealed
+    if (revealedIds.has(contact.id)) return;
+    // Check reveal limit
+    if (revealsUsed >= revealsTotal) {
+      setShowUpgradePrompt(true);
+      return;
+    }
+    // Get from cache
+    const cached = revealCache[contact.id];
+    if (!cached) return;
+    // Decrement reveals
+    const newRevealsUsed = revealsUsed + 1;
+    setRevealsUsed(newRevealsUsed);
+    setRevealedIds(prev => new Set([...prev, contact.id]));
+    // Update Supabase
+    if (sbTeam) {
+      await sb.from("teams").update({ reveals_used: newRevealsUsed }).eq("id", sbTeam.id);
+    }
+  }
+
+  async function loadListMemberships(teamId) {
+    if (!teamId) return;
+    try {
+      const { data: teamLists } = await sb.from("lists").select("id").eq("team_id", teamId);
+      const listIds = (teamLists||[]).map(l => l.id);
+      if (listIds.length === 0) { setListMemberships({}); setListContactData({}); return; }
+      const { data: rows } = await sb.from("list_contacts").select("list_id, contact_id, saved_contacts(contact_data, apollo_id)").in("list_id", listIds);
+      if (!rows) return;
+      const memberships = {};
+      const contactData = {};
+      rows.forEach(r => {
+        const cd = r.saved_contacts?.contact_data;
+        const cid = cd?.id || r.saved_contacts?.apollo_id;
+        if (!cid) return;
+        if (!memberships[r.list_id]) memberships[r.list_id] = new Set();
+        memberships[r.list_id].add(cid);
+        if (!contactData[r.list_id]) contactData[r.list_id] = [];
+        if (cd) contactData[r.list_id].push(cd);
+      });
+      setListMemberships(memberships);
+      setListContactData(contactData);
+    } catch (e) { console.warn("Load list memberships error:", e.message); }
+  }
+
+  // Lists reference saved_contacts.id, so a contact must be saved before it can join a list.
+  // Creates the saved_contacts row if one doesn't already exist, and returns its id either way.
+  async function ensureSavedContactId(contact) {
+    if (savedRowIds[contact.id]) return savedRowIds[contact.id];
+    if (!currentUser || !sbTeam?.id) return null;
+    try {
+      const { data, error } = await sb.from("saved_contacts").insert({
+        user_id: currentUser.id,
+        team_id: sbTeam.id,
+        apollo_id: String(contact.id),
+        contact_data: { ...contact, pipeline_stage: "New" },
+      }).select("id").single();
+      if (error) { console.warn("Ensure saved contact error:", error.message); return null; }
+      if (data) {
+        setSavedRowIds(p => ({ ...p, [contact.id]: data.id }));
+        setSavedIds(p => new Set([...p, contact.id]));
+        setSavedContacts(p => [...p.filter(c=>c.id!==contact.id), contact]);
+        setPipelineStages(p => ({ ...p, [contact.id]: "New" }));
+        return data.id;
+      }
+    } catch (e) { console.warn("Ensure saved contact error:", e.message); }
+    return null;
+  }
+
+  async function toggleContactInList(contact, listId) {
+    const cid = contact.id;
+    const isIn = listMemberships[listId]?.has(cid);
+    if (isIn) {
+      // Remove
+      setListMemberships(p => { const n = { ...p }; n[listId] = new Set(n[listId]); n[listId].delete(cid); return n; });
+      setListContactData(p => ({ ...p, [listId]: (p[listId]||[]).filter(c => c.id !== cid) }));
+      setLists(p => p.map(l => l.id === listId ? { ...l, count: Math.max(0, (l.count||0) - 1) } : l));
+      const savedContactId = savedRowIds[cid];
+      if (savedContactId && sbTeam) {
+        try { await sb.from("list_contacts").delete().eq("list_id", listId).eq("contact_id", savedContactId); } catch (e) { console.warn(e.message); }
+      }
+    } else {
+      // Add — first make sure this contact has a saved_contacts row, since list_contacts references that id
+      const savedContactId = await ensureSavedContactId(contact);
+      if (!savedContactId) { alert("Couldn't add to list — please try again."); return; }
+      setListMemberships(p => { const n = { ...p }; n[listId] = new Set(n[listId] ? [...n[listId], cid] : [cid]); return n; });
+      setListContactData(p => ({ ...p, [listId]: [...(p[listId]||[]).filter(c=>c.id!==cid), contact] }));
+      setLists(p => p.map(l => l.id === listId ? { ...l, count: (l.count||0) + 1 } : l));
+      try {
+        const { error } = await sb.from("list_contacts").insert({ list_id: listId, contact_id: savedContactId });
+        if (error) console.warn("Add to list error:", error.message);
+      } catch (e) { console.warn("Add to list error:", e.message); }
+    }
+  }
+
+  async function toggleSave(contactOrId) {
+    const id = typeof contactOrId === 'object' ? contactOrId.id : contactOrId;
+    const contact = typeof contactOrId === 'object' ? contactOrId : MOCK_CONTACTS.find(c=>c.id===id) || pdlContacts.find(c=>c.id===id);
+    if (savedIds.has(id)) {
+      // Unsave
+      setSavedIds(p => { const n=new Set(p); n.delete(id); return n; });
+      setSavedContacts(p => p.filter(c=>c.id!==id));
+      setPipelineStages(p => { const n={...p}; delete n[id]; return n; });
+      // Delete from Supabase
+      if (savedRowIds[id] && currentUser) {
+        try { await sb.from("saved_contacts").delete().eq("id", savedRowIds[id]); } catch(e) { console.warn(e); }
+      }
+    } else {
+      // Save
+      setSavedIds(p => new Set([...p, id]));
+      if (contact) {
+        setSavedContacts(p => [...p.filter(c=>c.id!==id), contact]);
+        setPipelineStages(p => ({ ...p, [id]: "New" }));
+        // Save to Supabase
+        if (currentUser && sbTeam?.id) {
+          try {
+            const { data, error } = await sb.from("saved_contacts").insert({
+              user_id: currentUser.id,
+              team_id: sbTeam.id,
+              apollo_id: String(id),
+              contact_data: { ...contact, pipeline_stage: "New" }
+            }).select("id").single();
+            if (error) { console.warn("Save error:", error.message); }
+            else if (data) { setSavedRowIds(p => ({ ...p, [id]: data.id })); }
+          } catch(e) { console.warn("Save contact error:", e.message); }
+        }
+      }
+    }
+  }
+
+  async function moveToStage(contactId, newStage) {
+    setPipelineStages(p => ({ ...p, [contactId]: newStage }));
+    // Update in Supabase
+    if (savedRowIds[contactId] && currentUser) {
+      try {
+        const contact = savedContacts.find(c=>c.id===contactId);
+        if (contact) {
+          await sb.from("saved_contacts").update({
+            contact_data: { ...contact, pipeline_stage: newStage }
+          }).eq("id", savedRowIds[contactId]);
+        }
+      } catch(e) { console.warn(e); }
+    }
+  }
+  // Notes persist alongside the contact regardless of pipeline stage — stored in the
+  // same flexible contact_data JSONB used for pipeline_stage, so no schema change needed.
+  function updateContactNoteDraft(contactId, note) {
+    setSavedContacts(p => p.map(c => c.id === contactId ? { ...c, notes: note } : c));
+  }
+  async function saveContactNote(contactId) {
+    if (!savedRowIds[contactId] || !currentUser) return;
+    try {
+      const contact = savedContacts.find(c=>c.id===contactId);
+      if (contact) {
+        await sb.from("saved_contacts").update({
+          contact_data: { ...contact, pipeline_stage: pipelineStages[contactId] || "New" }
+        }).eq("id", savedRowIds[contactId]);
+      }
+    } catch(e) { console.warn("Save note error:", e); }
+  }
+  function toggleExport(id) { setSelectedForExport(p => { const n=new Set(p); n.has(id)?n.delete(id):n.add(id); return n; }); }
+
+  function downloadCSV(contacts) {
+    const hdr = ["Name","Title","Company","Industry","Department","Seniority","Location","Email","Phone","Employees","Revenue","AI Score","Verified","Tags"];
+    const rows = contacts.map(c => [c.name,c.title,c.company,c.industry,c.department,c.seniority,c.location,c.email,c.phone,c.employees,c.revenue,c.score,c.verified?"Yes":"No",c.tags.join("; ")].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(","));
+    // Track exported IDs for deduplication badges
+    setExportedIds(prev => new Set([...prev, ...contacts.map(c => c.id)]));
+    const blob = new Blob([[hdr.join(","),...rows].join("\n")], { type:"text/csv" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    a.download = `zelvarix-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  }
+
+  function sendInvite() {
+    if (!inviteEmail.includes("@")) return;
+    const initials = inviteEmail.split("@")[0].slice(0,2).toUpperCase();
+    setTeamMembers(p => [...p, { id:Date.now(), name:inviteEmail.split("@")[0], email:inviteEmail, role:inviteRole, status:"invited", joined:"—", lastActive:"—", avatar:initials, searches:0, exports:0 }]);
+    setInviteEmail(""); setShowInviteModal(false);
+  }
+
+  // ── Load booking link from localStorage ─────────────────────────────────
+  useEffect(() => {
+    const saved = localStorage.getItem('zelvarix_booking_link');
+    if (saved) setBookingLink(saved);
+  }, []);
+
+  // ── Google Analytics ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    // Load GA4
+    const script1 = document.createElement('script');
+    script1.src = `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`;
+    script1.async = true;
+    document.head.appendChild(script1);
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function(){ window.dataLayer.push(arguments); };
+    window.gtag('js', new Date());
+    window.gtag('config', GA_MEASUREMENT_ID);
+    // Crisp removed — replaced with native Zelvarix support bot
+  }, []);
+
+  // ── Auto-logout after 15 minutes of inactivity ──────────────────────────
+  const inactivityRef = useRef(null);
+
+  // ── Handle Stripe return ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get("payment");
+    const plan = params.get("plan");
+    if (payment === "success" && plan) {
+      window.history.replaceState({}, "", window.location.pathname);
+      setTimeout(() => {
+        if (plan.startsWith("topup_")) {
+          const packId = plan.replace("topup_", "");
+          const pack = TOPUP_PACKS.find(p => p.id === packId);
+          const revealsAdded = pack ? pack.reveals : "";
+          alert(`Your top-up purchase was successful!${revealsAdded ? ` ${revealsAdded} reveals and ${pack.searches} searches` : " Your credits"} have been added to your account.`);
+        } else {
+          alert("Zelvarix " + plan.charAt(0).toUpperCase() + plan.slice(1) + " is now active! Your 7-day free trial has started.");
+        }
+      }, 1000);
+    } else if (payment === "cancelled") {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (supportEndRef.current) {
+      supportEndRef.current.scrollIntoView({ behavior:"smooth" });
+    }
+  }, [supportMessages]);
+
+  function resetInactivityTimer() {
+    clearTimeout(inactivityRef.current);
+    inactivityRef.current = setTimeout(async () => {
+      await sb.auth.signOut();
+      setCurrentUser(null);
+      setSbTeam(null);
+      setAppView("auth");
+    }, 15 * 60 * 1000); // 15 minutes
+  }
+
+  useEffect(() => {
+    if (appView !== "app") return;
+    const events = ["mousemove", "mousedown", "keypress", "scroll", "touchstart", "click"];
+    events.forEach(e => window.addEventListener(e, resetInactivityTimer));
+    resetInactivityTimer(); // start timer on mount
+    return () => {
+      events.forEach(e => window.removeEventListener(e, resetInactivityTimer));
+      clearTimeout(inactivityRef.current);
+    };
+  }, [appView]);
+
+  // Session restore + splash
+  useEffect(() => {
+    async function restoreSession() {
+      const { data } = await sb.auth.getSession();
+      if (data.session?.user) {
+        const user = data.session.user;
+        setCurrentUser(user);
+        // Load profile
+        const { data: profile } = await sb.from("profiles").select("*").eq("id", user.id).single();
+        if (profile) {
+          setOnboardData({ name: profile.name||"", company: profile.company||"", role: profile.role||"", goal: profile.goal||"" });
+          if (profile.is_demo) setIsDemo(true);
+        }
+        // Load team
+        const { data: mem } = await sb.from("team_members").select("team_id, role").eq("user_id", user.id).maybeSingle();
+        if (mem) {
+          const { data: team } = await sb.from("teams").select("*").eq("id", mem.team_id).single();
+          if (team) {
+            setSbTeam(team);
+            setSelectedPlan(team.plan);
+            setRevealsUsed(team.reveals_used || 0);
+            setRevealsTotal(team.reveals_total || 20);
+            setSearchesUsed(team.searches_used || 0);
+            setSearchesTotal(team.searches_total || 30);
+            // Auto-switch to live data for paying customers
+            const paid = team.plan && ['starter','pro','team'].includes(team.plan) && (team.reveals_total || 0) > 0;
+            if (paid) { setIsPaidCustomer(true); setUseLiveData(true); }
+            setResultsPerSearch(team.results_per_search || 3);
+          }
+          const { data: members } = await sb.from("team_members").select("id, user_id, role, status, joined_at").eq("team_id", mem.team_id);
+          if (members && members.length > 0) {
+            const userIds = members.map(m => m.user_id).filter(Boolean);
+            const { data: profilesData } = await sb.from("profiles").select("id, name").in("id", userIds);
+            const profileMap = {};
+            (profilesData||[]).forEach(p => { profileMap[p.id] = p; });
+            setTeamMembers(members.map((m,i) => {
+              const p = profileMap[m.user_id];
+              return { id: p?.id || m.user_id || i, name: p?.name || "Member", email:"", role: m.role, status: m.status, joined: new Date(m.joined_at).toLocaleDateString("en-US",{month:"short",year:"numeric"}), lastActive:"—", avatar:(p?.name||"??").split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase(), searches:0, exports:0 };
+            }));
+          }
+          // Load lists
+          const { data: lsts } = await sb.from("lists").select("id, name, list_contacts(count)").eq("team_id", mem.team_id);
+          if (lsts) setLists(lsts.map(l => ({ id: l.id, name: l.name, count: l.list_contacts?.[0]?.count || 0 })));
+          loadListMemberships(mem.team_id);
+          // Load saved contacts
+          const { data: saved, error: savedError } = await sb.from("saved_contacts").select("id, contact_data").eq("user_id", user.id);
+          console.log("Loaded saved contacts:", saved?.length || 0, "error:", savedError?.message);
+          if (saved && saved.length > 0) {
+            const ids = new Set();
+            const contacts = [];
+            const rowIds = {};
+            const stages = {};
+            saved.forEach(s => {
+              const cd = s.contact_data;
+              if (!cd) return;
+              const cid = cd.id;
+              if (cid) {
+                ids.add(cid);
+                contacts.push(cd);
+                rowIds[cid] = s.id;
+                stages[cid] = cd.pipeline_stage || "New";
+              }
+            });
+            setSavedIds(ids);
+            setSavedContacts(contacts);
+            setSavedRowIds(rowIds);
+            setPipelineStages(stages);
+            console.log("Pipeline stages loaded:", stages);
+          }
+        }
+        setSbReady(true);
+        setAppView("app");
+        return;
+      }
+      setSbReady(true);
+    }
+    if (appView==="splash") {
+      // Direct URLs for legal pages (linked from Stripe, emails, etc.) skip the splash + session flow
+      const legalPath = { "/terms":"terms", "/privacy":"privacy", "/cookies":"cookies", "/security":"security" }[window.location.pathname];
+      if (legalPath) { setSplashDone(true); setSbReady(true); setAppView(legalPath); return; }
+      const t1 = setTimeout(()=>setSplashDone(true), 2000);
+      restoreSession().then(() => {
+        // Only advance to pricing if session restore didn't redirect to app
+        setAppView(prev => prev === "splash" ? "pricing" : prev);
+      });
+      const t2 = setTimeout(()=>setAppView(prev => prev==="splash" ? "pricing" : prev), 2700);
+      return ()=>{ clearTimeout(t1); clearTimeout(t2); };
+    }
+  },[appView]);
+
+  async function handleLogin() {
+    setAuthError("");
+    if (!loginData.email||!loginData.password) { setAuthError("Please fill in all fields."); return; }
+    if (!loginData.email.includes("@"))         { setAuthError("Enter a valid email."); return; }
+    setAuthLoading(true);
+    const { data, error } = await sb.auth.signInWithPassword({ email: loginData.email, password: loginData.password });
+    setAuthLoading(false);
+    if (error) { setAuthError(error.message); return; }
+    const user = data.user;
+    setCurrentUser(user);
+    // Load profile
+    const { data: profile } = await sb.from("profiles").select("*").eq("id", user.id).single();
+    if (profile) {
+      setOnboardData({ name: profile.name||"", company: profile.company||"", role: profile.role||"", goal: profile.goal||"", bookingLink: profile.booking_link||"" });
+      if (profile.is_demo) setIsDemo(true);
+      if (profile.booking_link) setBookingLink(profile.booking_link);
+    }
+    // Load team
+    const { data: mem } = await sb.from("team_members").select("team_id, role").eq("user_id", user.id).maybeSingle();
+    if (mem) {
+      const { data: team } = await sb.from("teams").select("*").eq("id", mem.team_id).single();
+      if (team) { setSbTeam(team); setSelectedPlan(team.plan); }
+      const { data: lsts } = await sb.from("lists").select("id, name, list_contacts(count)").eq("team_id", mem.team_id);
+      if (lsts) setLists(lsts.map(l => ({ id: l.id, name: l.name, count: l.list_contacts?.[0]?.count || 0 })));
+      loadListMemberships(mem.team_id);
+      const { data: saved, error: savedErr } = await sb.from("saved_contacts").select("id, contact_data").eq("user_id", user.id);
+      console.log("Login - saved contacts:", saved?.length || 0, "error:", savedErr?.message);
+      if (saved && saved.length > 0) {
+        const ids = new Set();
+        const contacts = [];
+        const rowIds = {}, stages = {};
+        saved.forEach(s => {
+          const cd = s.contact_data;
+          if (!cd) return;
+          const cid = cd.id;
+          if (cid) { ids.add(cid); contacts.push(cd); rowIds[cid]=s.id; stages[cid]=cd.pipeline_stage||"New"; }
+        });
+        setSavedIds(ids);
+        setSavedContacts(contacts);
+        setSavedRowIds(rowIds);
+        setPipelineStages(stages);
+      }
+    }
+    setAppView("app");
+  }
+
+  async function handleSignup() {
+    setAuthError("");
+    if (!signupData.name||!signupData.email||!signupData.password||!signupData.confirm) { setAuthError("Please fill in all fields."); return; }
+    if (!signupData.email.includes("@"))     { setAuthError("Enter a valid email."); return; }
+    if (signupData.password.length<8)        { setAuthError("Password must be 8+ characters."); return; }
+    if (signupData.password!==signupData.confirm) { setAuthError("Passwords do not match."); return; }
+    if (!termsAccepted) { setAuthError("You must agree to the Terms of Service and Privacy Policy to continue."); return; }
+    setAuthLoading(true);
+    // 1. Create Supabase auth user
+    const { data, error } = await sb.auth.signUp({ email: signupData.email, password: signupData.password, options: { data: { name: signupData.name }, emailRedirectTo: 'https://www.zelvarix.ai' } });
+    if (error) { setAuthLoading(false); setAuthError(error.message); return; }
+    const user = data.user;
+    setCurrentUser(user);
+    // 1b. Soft-flag check for +alias / Gmail-dot trial abuse — never blocks signup.
+    // Server normalizes + records the email and tells us if it's seen this
+    // normalized form before; we just store the flag on the profile.
+    let trialFlagged = false;
+    try {
+      const flagRes = await fetch('/api/check-trial-signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: signupData.email, userId: user.id }),
+      });
+      const flagData = await flagRes.json();
+      trialFlagged = !!flagData.flagged;
+    } catch (e) { console.warn('Trial abuse check error (non-blocking):', e); }
+    // 2. Create profile
+    await sb.from("profiles").insert({ id: user.id, name: signupData.name, terms_accepted_at: new Date().toISOString(), trial_flag: trialFlagged });
+    // 3. Create team
+    const planCredits = { starter:200, pro:1000, team:5000, enterprise:999999 };
+    const planSeats   = { starter:1,   pro:10,   team:50,   enterprise:9999   };
+    const pid = selectedPlan || "pro";
+    const { data: team } = await sb.from("teams").insert({ name:`${signupData.name}'s Team`, plan:pid, credits_total:planCredits[pid]||1000, credits_used:0, seats_total:planSeats[pid]||10 }).select().single();
+    if (team) {
+      setSbTeam(team);
+      await sb.from("team_members").insert({ team_id: team.id, user_id: user.id, role:"admin", status:"active" });
+    }
+    // 4. Send welcome email (fire-and-forget — never blocks signup)
+    fetch('/api/welcome-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: signupData.name, email: signupData.email }),
+    }).catch(e => console.warn('Welcome email error:', e));
+    setAuthLoading(false);
+    setOnboardData(p=>({...p, name:signupData.name}));
+    setAppView("onboard");  // Always go to onboarding after signup
+  }
+
+  // ── ONBOARDING ─────────────────────────────────────────────────────────────
+  const REFERRAL_SOURCES = ["LinkedIn", "Google search", "Referral from a colleague", "Twitter/X", "Podcast or blog", "Other"];
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // COMING SOON / WAITLIST — standalone landing page, no auth/app logic
+  // ══════════════════════════════════════════════════════════════════════════
+  if (typeof window !== "undefined" && window.location.pathname === "/coming-soon") {
+    async function joinWaitlist() {
+      setWlError("");
+      const email = wlEmail.trim().toLowerCase();
+      if (!email || !email.includes("@") || !email.includes(".")) {
+        setWlError("Please enter a valid email address.");
+        return;
+      }
+      setWlSubmitting(true);
+      try {
+        const { error } = await sb.from("waitlist").insert({ email });
+        if (error) {
+          // Unique constraint violation — they're already on the list, treat as success
+          if (error.code === "23505" || /duplicate/i.test(error.message || "")) {
+            setWlDone(true);
+          } else {
+            setWlError("Something went wrong — please try again.");
+          }
+        } else {
+          setWlDone(true);
+        }
+      } catch (e) {
+        setWlError("Something went wrong — please try again.");
+      }
+      setWlSubmitting(false);
+    }
+
+    return (
+      <div style={{ minHeight:"100vh", background:T.ink, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans',sans-serif", position:"relative", overflow:"hidden", padding:"40px 20px" }}>
+        <style>{GLOBAL_CSS}</style>
+        <div style={{ position:"absolute", inset:0, backgroundImage:"url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='.04'/%3E%3C/svg%3E\")", opacity:.6, pointerEvents:"none" }} />
+        <div style={{ width:"100%", maxWidth:480, position:"relative", zIndex:1, textAlign:"center", animation:"fadeIn .6s ease" }}>
+          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:48, color:T.cream, letterSpacing:-1.5, lineHeight:1, marginBottom:10 }}>Zelvarix<span style={{ color:T.greenb, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
+          <div style={{ fontSize:12, color:"rgba(255,255,255,.4)", letterSpacing:2, textTransform:"uppercase", marginBottom:36 }}>Coming Soon</div>
+
+          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:28, color:T.cream, lineHeight:1.3, marginBottom:16 }}>
+            B2B prospecting, built for<br />businesses like yours.
+          </div>
+          <div style={{ fontSize:14, color:"rgba(255,255,255,.6)", lineHeight:1.7, marginBottom:36, maxWidth:400, marginLeft:"auto", marginRight:"auto" }}>
+            Over 1.3 billion verified contacts, AI-powered outreach, and transparent flat pricing starting at $59/month. We're putting the finishing touches on things now.
+          </div>
+
+          {wlDone ? (
+            <div style={{ background:"rgba(168,212,184,.12)", border:`1px solid rgba(168,212,184,.3)`, borderRadius:8, padding:"22px 24px" }}>
+              <div style={{ fontSize:24, marginBottom:8 }}>✓</div>
+              <div style={{ fontSize:15, color:T.cream, fontWeight:600, marginBottom:4 }}>You're on the list!</div>
+              <div style={{ fontSize:13, color:"rgba(255,255,255,.6)" }}>We'll email you the moment Zelvarix goes live.</div>
+            </div>
+          ) : (
+            <div style={{ maxWidth:380, margin:"0 auto" }}>
+              <div style={{ display:"flex", gap:8 }}>
+                <input
+                  className="input-base"
+                  value={wlEmail}
+                  onChange={e=>setWlEmail(e.target.value)}
+                  onKeyDown={e=>e.key==="Enter"&&!wlSubmitting&&joinWaitlist()}
+                  placeholder="you@company.com"
+                  style={{ flex:1, background:"rgba(255,255,255,.06)", border:"1px solid rgba(255,255,255,.15)", color:T.cream }}
+                />
+                <button onClick={joinWaitlist} disabled={wlSubmitting} style={{ padding:"9px 20px", background:T.greenb, border:"none", borderRadius:4, color:T.ink, fontWeight:700, fontSize:13, cursor:wlSubmitting?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", whiteSpace:"nowrap", opacity:wlSubmitting?.6:1 }}>
+                  {wlSubmitting ? "…" : "Notify me"}
+                </button>
+              </div>
+              {wlError && <div style={{ fontSize:12, color:"#f5a3a3", marginTop:10 }}>{wlError}</div>}
+              <div style={{ fontSize:11, color:"rgba(255,255,255,.3)", marginTop:14 }}>No spam. Just one email when we launch.</div>
+            </div>
+          )}
+        </div>
+        <div style={{ position:"absolute", bottom:24, fontSize:11, color:"rgba(255,255,255,.15)", letterSpacing:1 }}>© 2026 Zelvarix.ai</div>
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PRICING PAGE — integrated
+  // ══════════════════════════════════════════════════════════════════════════
+  if (appView==="pricing") {
+    const btnStyle = (plan) => ({
+      width:"100%", padding:"11px",
+      background: plan.highlight ? T.green : plan.id==="enterprise" ? T.ink : "#fff",
+      border: `1.5px solid ${plan.highlight ? T.green : plan.id==="enterprise" ? T.ink : T.border}`,
+      borderRadius:5, color: plan.highlight||plan.id==="enterprise" ? "#fff" : T.ink,
+      fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:"'DM Sans',sans-serif",
+    });
+    async function choosePlan(plan) {
+      if (plan.id === "enterprise") {
+        window.location.href = "mailto:support@zelvarix.ai?subject=Enterprise Plan Inquiry";
+        return;
+      }
+      if (!currentUser) {
+        setAppView("auth");
+        return;
+      }
+      const priceId = STRIPE_PLAN_IDS[plan.id];
+      if (!priceId) return;
+      try {
+        // Don't trust sbTeam React state here — it can lag behind a just-completed signup.
+        // Look up the real team_id directly so Stripe checkout always gets the correct teamId.
+        let realTeamId = sbTeam?.id || null;
+        if (!realTeamId) {
+          const { data: mem } = await sb.from("team_members").select("team_id").eq("user_id", currentUser.id).maybeSingle();
+          realTeamId = mem?.team_id || null;
+        }
+        const res = await fetch("/api/stripe-checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            planId: plan.id,
+            userId: currentUser.id,
+            teamId: realTeamId,
+            email: currentUser.email,
+          }),
+        });
+        const data = await res.json();
+        if (data.url) window.location.href = data.url;
+        else alert("Error starting checkout. Please try again.");
+      } catch (err) {
+        console.error("Checkout error:", err);
+        alert("Error starting checkout. Please try again.");
+      }
+         // If user already logged in, go straight to billing; else go to auth
+      if (currentUser) { setAppView("app"); setView("billing"); }
+      else { setAppView("auth"); setAuthMode("signup"); }
+    }
+    return (
+      <div style={{ minHeight:"100vh", background:T.cream, fontFamily:"'DM Sans',sans-serif", color:T.ink }}>
+        <style>{GLOBAL_CSS}</style>
+        {/* Nav */}
+        <nav style={{ height:56, borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", padding:"0 40px", justifyContent:"space-between", background:"#fff", position:"sticky", top:0, zIndex:50 }}>
+          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.ink, letterSpacing:-.3 }}>Zelvarix<span style={{ color:T.green, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
+          <div style={{ display:"flex", gap:16, alignItems:"center" }}>
+            {currentUser && <button onClick={()=>setAppView("app")} style={{ fontSize:13, color:T.inkm, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>← Back to app</button>}
+            <button onClick={()=>{ setAppView("auth"); setAuthMode("login"); }} style={{ padding:"7px 16px", background:T.ink, border:"none", borderRadius:4, color:T.cream, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Sign in →</button>
+          </div>
+        </nav>
+
+        {/* Hero */}
+        <section style={{ textAlign:"center", padding:"72px 24px 52px", maxWidth:680, margin:"0 auto" }}>
+          <div style={{ fontSize:11, fontWeight:600, color:T.green, letterSpacing:2, textTransform:"uppercase", marginBottom:14 }}>Simple, transparent pricing</div>
+          <h1 style={{ fontFamily:"'Instrument Serif',serif", fontSize:52, color:T.ink, lineHeight:1.05, letterSpacing:-1.5, marginBottom:14 }}>
+            Pay for what you<br /><span style={{ color:T.green, fontStyle:"italic" }}>actually use.</span>
+          </h1>
+          <p style={{ fontSize:16, color:T.inkm, lineHeight:1.7, marginBottom:32 }}>
+            7-day free trial on every plan. No card required.<br />Searching is always free — credits only spend on contact reveals.
+          </p>
+          {/* Toggle */}
+          <div style={{ display:"inline-flex", alignItems:"center", gap:0, background:"#fff", border:`1px solid ${T.border}`, borderRadius:40, padding:"4px 5px" }}>
+            <button onClick={()=>setPricingYearly(false)} style={{ padding:"6px 18px", borderRadius:30, border:"none", background:!pricingYearly?T.ink:"transparent", color:!pricingYearly?T.cream:T.inkm, fontWeight:!pricingYearly?600:400, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all .2s" }}>Monthly</button>
+            <button onClick={()=>setPricingYearly(true)}  style={{ padding:"6px 18px", borderRadius:30, border:"none", background:pricingYearly?T.ink:"transparent",  color:pricingYearly?T.cream:T.inkm,  fontWeight:pricingYearly?600:400,  fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all .2s", display:"flex", alignItems:"center", gap:6 }}>
+              Annually <span style={{ fontSize:10, fontWeight:700, background:T.green, color:"#fff", padding:"2px 6px", borderRadius:10 }}>Save 25%</span>
+            </button>
+          </div>
+        </section>
+
+        {/* Plan cards */}
+        <section style={{ maxWidth:1120, margin:"0 auto", padding:"0 24px 72px", display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, alignItems:"start" }}>
+          {PLANS.map(plan => {
+            const price = pricingYearly ? plan.yearlyPrice : plan.monthlyPrice;
+            const isSelected = selectedPlan === plan.id;
+            return (
+              <div key={plan.id} style={{ background: plan.highlight ? T.ink : plan.id==="starter" ? T.paper : plan.id==="team" ? T.greenl : T.amberl, border:`1.5px solid ${isSelected ? T.green : plan.highlight ? T.ink : plan.id==="starter" ? T.border : plan.id==="team" ? T.greenb : T.amberb}`, borderRadius:8, padding:"26px 22px", display:"flex", flexDirection:"column", position:"relative", boxShadow: plan.highlight ? `0 8px 40px rgba(26,24,20,.18)` : isSelected ? `0 0 0 2px ${T.greenb}` : "0 1px 4px rgba(26,24,20,.05)" }}>
+                {plan.badge && <div style={{ position:"absolute", top:-11, left:"50%", transform:"translateX(-50%)", background:plan.annualOnly?T.amber:T.green, color:"#fff", fontSize:10, fontWeight:700, padding:"3px 12px", borderRadius:20, letterSpacing:1, textTransform:"uppercase", whiteSpace:"nowrap" }}>{plan.badge}</div>}
+                {isSelected && <div style={{ position:"absolute", top:-11, right:12, background:T.greenm, color:"#fff", fontSize:10, fontWeight:700, padding:"3px 10px", borderRadius:20, letterSpacing:.8, textTransform:"uppercase" }}>Selected ✓</div>}
+                <div style={{ marginBottom:18 }}>
+                  <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:21, color:plan.highlight?"#fff":T.ink, marginBottom:3 }}>{plan.name}</div>
+                  <div style={{ fontSize:12, color:plan.highlight?"rgba(255,255,255,.5)":T.inkm }}>{plan.tagline}</div>
+                </div>
+                <div style={{ marginBottom:18, borderBottom:`1px solid ${plan.highlight?"rgba(255,255,255,.1)":T.border}`, paddingBottom:18 }}>
+                  {plan.annualOnly ? (
+                    <>
+                      <div style={{ display:"flex", alignItems:"baseline", gap:3 }}>
+                        <span style={{ fontFamily:"'DM Mono',monospace", fontSize:36, fontWeight:500, color:T.ink, lineHeight:1 }}>${plan.yearlyPrice}</span>
+                        <span style={{ fontSize:12, color:T.inkm }}>/seat/mo</span>
+                      </div>
+                      <div style={{ fontSize:11, color:T.green, marginTop:3, fontWeight:600 }}>Billed annually (${plan.yearlyPrice * 12}/yr) · No monthly option</div>
+                    </>
+                  ) : price ? (
+                    <>
+                      <div style={{ display:"flex", alignItems:"baseline", gap:3 }}>
+                        <span style={{ fontFamily:"'DM Mono',monospace", fontSize:36, fontWeight:500, color:plan.highlight?"#fff":T.ink, lineHeight:1 }}>${price}</span>
+                        <span style={{ fontSize:12, color:plan.highlight?"rgba(255,255,255,.4)":T.inkm }}>/seat/mo</span>
+                      </div>
+                      {pricingYearly && plan.monthlyPrice && <div style={{ fontSize:11, color:T.green, marginTop:3, fontWeight:500 }}>Save ${(plan.monthlyPrice-plan.yearlyPrice)*12}/yr</div>}
+                    </>
+                  ) : (
+                    <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:32, color:plan.highlight?"#fff":T.ink, lineHeight:1 }}>Custom</div>
+                  )}
+                  <div style={{ display:"flex", gap:6, marginTop:10, flexWrap:"wrap" }}>
+                    <span style={{ fontSize:11, color:plan.highlight?"rgba(255,255,255,.55)":T.inkm, background:plan.highlight?"rgba(255,255,255,.08)":T.paper, border:`1px solid ${plan.highlight?"rgba(255,255,255,.12)":T.border}`, padding:"2px 7px", borderRadius:3 }}>
+                      {plan.maxSeats ? `${plan.maxSeats} seat${plan.maxSeats>1?"s":""}` : "Unlimited seats"}
+                    </span>
+                    <span style={{ fontSize:11, color:plan.highlight?"rgba(255,255,255,.55)":T.inkm, background:plan.highlight?"rgba(255,255,255,.08)":T.paper, border:`1px solid ${plan.highlight?"rgba(255,255,255,.12)":T.border}`, padding:"2px 7px", borderRadius:3 }}>
+                      {plan.credits ? `${plan.credits} reveals/mo` : "Unlimited reveals"}
+                    </span>
+                    <span style={{ fontSize:11, color:plan.highlight?"rgba(255,255,255,.55)":T.inkm, background:plan.highlight?"rgba(255,255,255,.08)":T.paper, border:`1px solid ${plan.highlight?"rgba(255,255,255,.12)":T.border}`, padding:"2px 7px", borderRadius:3 }}>
+                      {plan.searches ? `${plan.searches} searches/mo` : "Unlimited searches"}
+                    </span>
+                  </div>
+                </div>
+                <button onClick={()=>choosePlan(plan)} style={btnStyle(plan)}>{plan.id==="enterprise" ? "Talk to sales" : plan.annualOnly ? "Start annual plan →" : "Start free trial"}</button>
+                <div style={{ marginTop:18, flex:1 }}>
+                  {plan.features.map(f => (
+                    <div key={f} style={{ display:"flex", alignItems:"flex-start", gap:7, marginBottom:8 }}>
+                      <span style={{ color:T.green, fontSize:12, flexShrink:0, marginTop:1 }}>✓</span>
+                      <span style={{ fontSize:12, color:plan.highlight?"rgba(255,255,255,.78)":T.inkl, lineHeight:1.4 }}>{f}</span>
+                    </div>
+                  ))}
+                  {plan.missing.map(f => (
+                    <div key={f} style={{ display:"flex", alignItems:"flex-start", gap:7, marginBottom:8 }}>
+                      <span style={{ color:plan.highlight?"rgba(255,255,255,.2)":T.inkmut, fontSize:12, flexShrink:0, marginTop:1 }}>✕</span>
+                      <span style={{ fontSize:12, color:plan.highlight?"rgba(255,255,255,.22)":T.inkmut, lineHeight:1.4 }}>{f}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </section>
+
+        {/* Credit explainer */}
+        <section style={{ background:"#fff", borderTop:`1px solid ${T.border}`, borderBottom:`1px solid ${T.border}`, padding:"52px 24px" }}>
+          <div style={{ maxWidth:860, margin:"0 auto" }}>
+            <div style={{ textAlign:"center", marginBottom:36 }}>
+              <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:32, color:T.ink, letterSpacing:-.5, marginBottom:6 }}>How reveals work</div>
+              <div style={{ fontSize:14, color:T.inkm }}>Browse free. Reveal what you need. Simple.</div>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:28 }}>
+              {[
+                { n:"01", title:"Search freely",   body:"Filter across 1.3B+ verified contacts by industry, company, seniority, location, and department. Every search result shows name, title, company, and location — completely free." },
+                { n:"02", title:"Reveal to connect", body:"Click Reveal on any contact to see their verified email and phone number. One reveal credit per contact. You choose exactly who is worth reaching." },
+                { n:"03", title:"Team pooling",    body:"Reveals are shared across your team on Pro and Team plans. Admins can monitor usage in the Settings tab to keep the pool balanced." },
+              ].map(item => (
+                <div key={item.n} style={{ borderTop:`2px solid ${T.green}`, paddingTop:18 }}>
+                  <div style={{ fontFamily:"'DM Mono',monospace", fontSize:11, color:T.inkmut, marginBottom:8, letterSpacing:1 }}>{item.n}</div>
+                  <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:19, color:T.ink, marginBottom:8 }}>{item.title}</div>
+                  <div style={{ fontSize:13, color:T.inkm, lineHeight:1.75 }}>{item.body}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* FAQ */}
+        <section style={{ maxWidth:680, margin:"0 auto", padding:"64px 24px" }}>
+          <div style={{ textAlign:"center", marginBottom:40 }}>
+            <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:32, color:T.ink, letterSpacing:-.5, marginBottom:6 }}>Frequently asked</div>
+            <div style={{ fontSize:14, color:T.inkm }}>Everything about pricing, in plain English.</div>
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+            {FAQS.map((faq,i) => (
+              <div key={i} style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, overflow:"hidden" }}>
+                <button onClick={()=>setOpenFaq(openFaq===i?null:i)} style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", padding:"15px 20px", background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textAlign:"left" }}>
+                  <span style={{ fontSize:14, fontWeight:500, color:T.ink }}>{faq.q}</span>
+                  <span style={{ fontSize:18, color:T.green, flexShrink:0, marginLeft:12, transition:"transform .2s", display:"inline-block", transform:openFaq===i?"rotate(45deg)":"none" }}>+</span>
+                </button>
+                {openFaq===i && <div style={{ padding:"0 20px 14px", fontSize:13, color:T.inkm, lineHeight:1.75, borderTop:`1px solid ${T.border}`, paddingTop:12 }}>{faq.a}</div>}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Bottom CTA */}
+        <section style={{ background:T.greenl, borderTop:`1px solid ${T.greenb}`, padding:"64px 24px", textAlign:"center" }}>
+          <div style={{ maxWidth:520, margin:"0 auto" }}>
+            <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:38, color:T.ink, letterSpacing:-1, marginBottom:10, lineHeight:1.1 }}>Ready to find your next best customer?</div>
+            <div style={{ fontSize:14, color:T.inkm, marginBottom:28, lineHeight:1.7 }}>Start your 7-day free trial. No credit card required.<br />Full access to all Pro features from day one.</div>
+            <div style={{ display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" }}>
+              <button onClick={()=>choosePlan(PLANS[1])} style={{ padding:"12px 28px", background:T.green, border:"none", borderRadius:5, color:"#fff", fontWeight:700, fontSize:15, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Start Pro free →</button>
+              <button onClick={()=>{ setAppView("auth"); setAuthMode("login"); }} style={{ padding:"12px 22px", background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, color:T.inkl, fontWeight:500, fontSize:15, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Sign in</button>
+            </div>
+            <div style={{ marginTop:14, fontSize:12, color:T.inkmut }}>No card required · Cancel anytime · 7-day trial on all plans</div>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer style={{ background:T.ink, padding:"32px 40px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:16 }}>
+          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:18, color:T.cream }}>Zelvarix<span style={{ color:T.greenb, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
+          <div style={{ display:"flex", gap:20 }}>
+            {[["privacy","Privacy"],["terms","Terms"],["cookies","Cookies"],["security","Security"],["contact","Contact"],["about","About"]].map(([id,l])=><button key={id} onClick={()=>setAppView(id)} style={{ fontSize:12, color:T.inkm, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>{l}</button>)}
+          </div>
+          <div style={{ fontSize:11, color:T.inkm }}>© 2026 Zelvarix.ai</div>
+        </footer>
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // LEGAL / CONTACT / ABOUT PAGES
+  // ══════════════════════════════════════════════════════════════════════════
+  const legalPages = ["privacy", "terms", "cookies", "contact", "about", "security"];
+
+  async function submitContact() {
+    if (!contactForm.name || !contactForm.email || !contactForm.message) { setContactError("Please fill in all required fields."); return; }
+    setContactSending(true); setContactError("");
+    try {
+      const res = await fetch('/api/contact', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(contactForm) });
+      if (!res.ok) throw new Error('Send failed');
+      setContactSent(true);
+    } catch { setContactError("Failed to send. Please email support@zelvarix.ai directly."); }
+    setContactSending(false);
+  }
+  if (legalPages.includes(appView)) {
+    const pages = {
+      privacy: {
+        title: "Privacy Policy",
+        lastUpdated: "June 1, 2026",
+        content: [
+          { h: "1. Information We Collect", p: "We collect information you provide directly to us when you create an account, including your name, email address, company name, and role. We also collect usage data including searches performed, contacts viewed, lists created, and features used. We use cookies and similar technologies to maintain your session and improve your experience." },
+          { h: "2. How We Use Your Information", p: "We use your information to provide and improve the Zelvarix platform, process transactions, send transactional and promotional emails (with your consent), respond to support requests, and comply with legal obligations. We do not sell your personal information to third parties." },
+          { h: "3. Data Sharing", p: "We share your data with trusted service providers including Supabase (database and authentication), People Data Labs (contact data), Anthropic (AI processing), Stripe (payment processing), and Vercel (hosting). Each provider is bound by data processing agreements and processes data only as instructed by us." },
+          { h: "4. Contact Data", p: "Zelvarix provides access to publicly available B2B professional contact information sourced from People Data Labs. This data is used solely for legitimate B2B prospecting purposes. We do not store contact data you view — it is retrieved in real time and not retained on our servers beyond your session." },
+          { h: "5. Data Retention", p: "We retain your account data for as long as your account is active. Upon cancellation, your account data is retained for 30 days to allow reactivation, after which it is permanently deleted. You may request deletion of your data at any time by emailing privacy@zelvarix.ai." },
+          { h: "6. Your Rights", p: "Depending on your location, you may have rights including access to your data, correction of inaccurate data, deletion of your data, portability of your data, and objection to processing. To exercise these rights, contact privacy@zelvarix.ai. We will respond within 30 days." },
+          { h: "7. Security", p: "We implement industry-standard security measures including encryption in transit (TLS 1.3), encryption at rest, row-level security in our database, API key isolation, and regular security audits. No method of transmission over the internet is 100% secure, and we cannot guarantee absolute security." },
+          { h: "8. Cookies", p: "We use essential cookies for authentication and session management. We also use analytics cookies (Google Analytics) to understand how users interact with our platform. You can control cookies through your browser settings. Disabling essential cookies may affect platform functionality." },
+          { h: "9. Changes to This Policy", p: "We may update this Privacy Policy from time to time. We will notify you of significant changes by email and by posting the new policy on this page with an updated effective date." },
+          { h: "10. Contact Us", p: "If you have questions about this Privacy Policy, please contact us at privacy@zelvarix.ai." },
+        ]
+      },
+      terms: {
+        title: "Terms of Service",
+        lastUpdated: "June 1, 2026",
+        content: [
+          { h: "1. Acceptance of Terms", p: "By accessing or using Zelvarix (zelvarix.ai), you agree to be bound by these Terms of Service. If you do not agree, do not use the platform. These terms apply to all users including individuals, teams, and organisations." },
+          { h: "2. Description of Service", p: "Zelvarix is a B2B prospecting platform that provides access to professional contact data, AI-powered lead intelligence, and sales tools. We reserve the right to modify, suspend, or discontinue any feature at any time with reasonable notice." },
+          { h: "3. Acceptable Use", p: "You may use Zelvarix only for lawful B2B prospecting and sales purposes. You may not use the platform to spam, harass, or contact individuals outside a professional B2B context, violate any applicable law including CAN-SPAM, GDPR, or CASL, resell or redistribute contact data, attempt to reverse-engineer or scrape the platform, or share your account credentials with others." },
+          { h: "4. Subscription and Billing", p: "Zelvarix operates on a subscription basis. Your subscription begins on the date you select a paid plan and provide payment information. Subscriptions automatically renew unless cancelled before the renewal date. Credits expire at the end of each billing period and do not roll over unless stated otherwise." },
+          { h: "5. Cancellation and Refunds", p: "You may cancel your subscription at any time through the Billing section of your account. Cancellation takes effect at the end of your current billing period. We do not offer refunds for partial billing periods. In exceptional circumstances, refund requests may be considered at our discretion — contact support@zelvarix.ai." },
+          { h: "6. Intellectual Property", p: "Zelvarix and all associated trademarks, logos, and content are the property of Zelvarix, Inc. Contact data provided through the platform is licensed from third-party data providers and may not be redistributed, resold, or used outside the platform's intended purpose." },
+          { h: "7. Disclaimers", p: "Zelvarix is provided 'as is' without warranties of any kind. We do not guarantee the accuracy, completeness, or availability of contact data. AI-generated content (ice breakers, emails, scores) is provided for informational purposes and should be reviewed before use. We are not responsible for the outcome of any outreach campaigns." },
+          { h: "8. Limitation of Liability", p: "To the maximum extent permitted by law, Zelvarix's liability to you for any claim arising from these terms or your use of the platform is limited to the amount you paid us in the 12 months preceding the claim. We are not liable for indirect, incidental, or consequential damages." },
+          { h: "9. Governing Law", p: "These terms are governed by the laws of the State of Texas, United States. Any disputes shall be resolved in the courts of Texas, and you consent to personal jurisdiction in those courts." },
+          { h: "10. Changes to Terms", p: "We may update these terms from time to time. We will notify you of material changes by email at least 14 days before they take effect. Continued use of the platform after changes take effect constitutes acceptance of the new terms." },
+        ]
+      },
+      cookies: {
+        title: "Cookie Policy",
+        lastUpdated: "June 1, 2026",
+        content: [
+          { h: "What Are Cookies", p: "Cookies are small text files stored on your device when you visit a website. They help websites remember your preferences and understand how you use the site." },
+          { h: "Essential Cookies", p: "These cookies are required for Zelvarix to function. They manage your authentication session and keep you logged in. Without these cookies, you cannot use the platform. These cannot be disabled." },
+          { h: "Analytics Cookies", p: "We use Google Analytics (GA4) to understand how users interact with Zelvarix — which features are used most, where users spend time, and how we can improve. Analytics cookies are anonymous and do not identify you personally. You can opt out via your browser settings or the Google Analytics opt-out extension." },
+          { h: "Support Cookies", p: "We use Crisp chat to provide customer support. Crisp may set cookies to maintain your chat session and remember your conversation history. These are only active if you interact with the chat widget." },
+          { h: "Managing Cookies", p: "You can control cookies through your browser settings. Most browsers allow you to block or delete cookies. Note that blocking essential cookies will prevent you from using Zelvarix. To opt out of Google Analytics specifically, visit tools.google.com/dlpage/gaoptout." },
+          { h: "Contact", p: "For questions about our use of cookies, contact privacy@zelvarix.ai." },
+        ]
+      },
+      contact: {
+        title: "Contact Us",
+        lastUpdated: null,
+        isContact: true,
+      },
+      about: {
+        title: "About Zelvarix",
+        lastUpdated: null,
+        isAbout: true,
+      },
+      security: {
+        title: "Security",
+        lastUpdated: "June 1, 2026",
+        content: [
+          { h: "Our Commitment to Security", p: "Security is foundational to Zelvarix. We are committed to protecting your data and the data of your prospects. We continuously review and improve our security practices." },
+          { h: "Infrastructure Security", p: "Zelvarix is hosted on Vercel's global edge network with automatic DDoS protection. Our database runs on Supabase (Postgres) with enterprise-grade encryption. All data is encrypted in transit using TLS 1.3 and at rest using AES-256 encryption." },
+          { h: "Authentication & Access Control", p: "User authentication is managed by Supabase Auth with industry-standard JWT tokens. We implement row-level security (RLS) ensuring users can only access their own data. API keys are never exposed in client-side code — all third-party API calls are proxied through secure server-side functions." },
+          { h: "Data Isolation", p: "Each team's data is completely isolated using row-level security policies. It is architecturally impossible for one team to access another team's contacts, lists, or billing data." },
+          { h: "Session Security", p: "User sessions automatically expire after 15 minutes of inactivity. Sessions are invalidated immediately on sign-out. We support re-authentication for sensitive actions like account cancellation." },
+          { h: "API Security", p: "All API endpoints implement rate limiting to prevent abuse. Server-side proxy functions protect third-party API keys from exposure. Input validation is performed on all API endpoints." },
+          { h: "Vulnerability Reporting", p: "If you discover a security vulnerability in Zelvarix, please report it responsibly to security@zelvarix.ai. We will acknowledge your report within 24 hours and work to resolve confirmed vulnerabilities promptly. We appreciate responsible disclosure and will credit researchers where appropriate." },
+          { h: "Compliance", p: "Zelvarix is designed with GDPR and CCPA compliance in mind. We maintain data processing agreements with all sub-processors. Enterprise customers may request our Data Processing Agreement (DPA) by contacting sales@zelvarix.ai." },
+        ]
+      },
+    };
+
+    const page = pages[appView];
+
+    async function submitContactLegal() { await submitContact(); }
+
+    return (
+      <div style={{ minHeight:"100vh", background:T.cream, fontFamily:"'DM Sans',sans-serif", color:T.ink }}>
+        <style>{GLOBAL_CSS}</style>
+        {/* Nav */}
+        <nav style={{ height:56, borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", padding:"0 40px", justifyContent:"space-between", background:"#fff", position:"sticky", top:0, zIndex:50 }}>
+          <button onClick={()=>setAppView(currentUser?"app":"pricing")} style={{ fontFamily:"'Instrument Serif',serif", fontSize:20, color:T.ink, background:"none", border:"none", cursor:"pointer", letterSpacing:-.3 }}>
+            Zelvarix<span style={{ color:T.green, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span>
+          </button>
+          <div style={{ display:"flex", gap:20, alignItems:"center" }}>
+            {["about","security","contact"].map(p=>(
+              <button key={p} onClick={()=>setAppView(p)} style={{ fontSize:13, color:appView===p?T.green:T.inkm, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textTransform:"capitalize", fontWeight:appView===p?600:400 }}>{p}</button>
+            ))}
+            <button onClick={()=>setAppView(currentUser?"app":"pricing")} style={{ padding:"7px 16px", background:T.ink, border:"none", borderRadius:4, color:T.cream, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>{currentUser?"Back to app →":"Get started →"}</button>
+          </div>
+        </nav>
+
+        <div style={{ maxWidth:760, margin:"0 auto", padding:"52px 24px 80px" }}>
+
+          {/* CONTACT PAGE */}
+          {appView==="contact" && (
+            <>
+              <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:42, color:T.ink, letterSpacing:-1, marginBottom:8 }}>Get in touch</div>
+              <div style={{ fontSize:15, color:T.inkm, marginBottom:40, lineHeight:1.7 }}>Have a question, need help, or want to talk about an enterprise plan? We're here.</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:32, marginBottom:40 }}>
+                {[
+                  { icon:"✉", label:"General", email:"hello@zelvarix.ai", desc:"General questions and feedback" },
+                  { icon:"🛠", label:"Support", email:"support@zelvarix.ai", desc:"Technical help and account issues" },
+                  { icon:"💼", label:"Sales", email:"sales@zelvarix.ai", desc:"Enterprise plans and partnerships" },
+                  { icon:"🔒", label:"Security", email:"security@zelvarix.ai", desc:"Report vulnerabilities responsibly" },
+                ].map(c=>(
+                  <div key={c.label} style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:6, padding:"18px 20px" }}>
+                    <div style={{ fontSize:20, marginBottom:8 }}>{c.icon}</div>
+                    <div style={{ fontSize:14, fontWeight:600, color:T.ink, marginBottom:2 }}>{c.label}</div>
+                    <div style={{ fontSize:13, color:T.inkm, marginBottom:6 }}>{c.desc}</div>
+                    <a href={`mailto:${c.email}`} style={{ fontSize:13, color:T.green, textDecoration:"none", fontWeight:500 }}>{c.email}</a>
+                  </div>
+                ))}
+              </div>
+              {/* Contact form */}
+              <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:6, padding:"28px 28px" }}>
+                <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.ink, marginBottom:20 }}>Send us a message</div>
+                {contactSent ? (
+                  <div style={{ textAlign:"center", padding:"32px 0" }}>
+                    <div style={{ fontSize:36, marginBottom:12 }}>✓</div>
+                    <div style={{ fontSize:18, fontFamily:"'Instrument Serif',serif", color:T.ink, marginBottom:6 }}>Message sent!</div>
+                    <div style={{ fontSize:13, color:T.inkm }}>We'll get back to you within 1 business day.</div>
+                  </div>
+                ) : (
+                  <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+                      <div>
+                        <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Name *</label>
+                        <input className="input-base" value={contactForm.name} onChange={e=>setContactForm(p=>({...p,name:e.target.value}))} placeholder="Your name" />
+                      </div>
+                      <div>
+                        <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Email *</label>
+                        <input className="input-base" type="email" value={contactForm.email} onChange={e=>setContactForm(p=>({...p,email:e.target.value}))} placeholder="you@company.com" />
+                      </div>
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+                      <div>
+                        <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Company</label>
+                        <input className="input-base" value={contactForm.company} onChange={e=>setContactForm(p=>({...p,company:e.target.value}))} placeholder="Company name" />
+                      </div>
+                      <div>
+                        <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Subject</label>
+                        <select className="input-base" value={contactForm.subject} onChange={e=>setContactForm(p=>({...p,subject:e.target.value}))}>
+                          {["General inquiry","Technical support","Billing question","Enterprise sales","Partnership","Security","Other"].map(s=><option key={s}>{s}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Message *</label>
+                      <textarea className="input-base" value={contactForm.message} onChange={e=>setContactForm(p=>({...p,message:e.target.value}))} placeholder="Tell us how we can help..." rows={5} style={{ resize:"vertical", lineHeight:1.6 }} />
+                    </div>
+                    {contactError && <div style={{ fontSize:12, color:T.red, background:T.redl, border:`1px solid ${T.redb}`, borderRadius:4, padding:"8px 12px" }}>{contactError}</div>}
+                    <button onClick={submitContact} disabled={contactSending} style={{ padding:"11px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:14, cursor:contactSending?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", opacity:contactSending?.7:1 }}>
+                      {contactSending ? "Sending…" : "Send message →"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* ABOUT PAGE */}
+          {appView==="about" && (
+            <>
+              <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:42, color:T.ink, letterSpacing:-1, marginBottom:8 }}>About Zelvarix</div>
+              <div style={{ fontSize:15, color:T.inkm, marginBottom:40, lineHeight:1.7 }}>We're building the AI-native prospecting platform for modern sales teams.</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:28 }}>
+                {[
+                  { title:"Our mission", body:"Sales teams spend too much time finding contacts and not enough time selling. Zelvarix changes that — combining 1.3B+ verified contacts with Claude AI to give every rep the intelligence they need to find, research, and approach the right people fast." },
+                  { title:"Why we built this", body:"Every existing prospecting tool was built for the pre-AI era. They're data dumps. Zelvarix is different — it doesn't just find contacts, it tells you exactly how to approach them with personalised ice breakers, lead score rationales, and AI-written outreach. We built the tool we always wanted." },
+                  { title:"Our values", body:"Transparency over opacity — our AI scoring always explains its reasoning. Privacy by design — we handle contact data responsibly and only for legitimate B2B purposes. Fair pricing — we charge what we cost, not what the market will bear." },
+                  { title:"Get in touch", body:"We're a small, focused team. If you have feedback, ideas, or want to talk enterprise — we'd love to hear from you. Email us at hello@zelvarix.ai or use the contact form." },
+                ].map(s=>(
+                  <div key={s.title} style={{ borderTop:`2px solid ${T.green}`, paddingTop:20 }}>
+                    <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.ink, marginBottom:10 }}>{s.title}</div>
+                    <div style={{ fontSize:14, color:T.inkm, lineHeight:1.8 }}>{s.body}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* LEGAL PAGES (Privacy, Terms, Cookies, Security) */}
+          {!["contact","about"].includes(appView) && page && (
+            <>
+              <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:42, color:T.ink, letterSpacing:-1, marginBottom:8 }}>{page.title}</div>
+              {page.lastUpdated && <div style={{ fontSize:13, color:T.inkmut, marginBottom:40 }}>Last updated: {page.lastUpdated}</div>}
+              <div style={{ display:"flex", flexDirection:"column", gap:24 }}>
+                {(page.content || []).map((section, i)=>(
+                  <div key={i} style={{ borderTop:`1px solid ${T.border}`, paddingTop:20 }}>
+                    <div style={{ fontSize:15, fontWeight:600, color:T.ink, marginBottom:8 }}>{section.h}</div>
+                    <div style={{ fontSize:14, color:T.inkm, lineHeight:1.8 }}>{section.p}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+        </div>
+
+        {/* Footer */}
+        <footer style={{ background:T.ink, padding:"32px 40px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:16 }}>
+          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:18, color:T.cream }}>Zelvarix<span style={{ color:T.greenb, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
+          <div style={{ display:"flex", gap:20, flexWrap:"wrap" }}>
+            {[["privacy","Privacy"],["terms","Terms"],["cookies","Cookies"],["security","Security"],["contact","Contact"],["about","About"]].map(([id,label])=>(
+              <button key={id} onClick={()=>setAppView(id)} style={{ fontSize:12, color:T.inkm, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>{label}</button>
+            ))}
+          </div>
+          <div style={{ fontSize:11, color:T.inkm }}>© 2026 Zelvarix.ai</div>
+        </footer>
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SPLASH
+  // ══════════════════════════════════════════════════════════════════════════
+  if (appView==="splash") return (
+    <div style={{ minHeight:"100vh", background:T.ink, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans',sans-serif", position:"relative", overflow:"hidden" }}>
+      <style>{GLOBAL_CSS}</style>
+      {/* Grain texture overlay */}
+      <div style={{ position:"absolute", inset:0, backgroundImage:"url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='.04'/%3E%3C/svg%3E\")", opacity:.6, pointerEvents:"none" }} />
+      {/* Large serif wordmark */}
+      <div style={{ animation:"fadeIn .8s ease", textAlign:"center", zIndex:1 }}>
+        <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:64, color:T.cream, letterSpacing:-2, lineHeight:1, marginBottom:6 }}>Zelvarix<span style={{ color:T.greenb, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
+        <div style={{ fontSize:13, color:T.inkm, letterSpacing:2, textTransform:"uppercase", marginBottom:52 }}>Sales Intelligence Platform</div>
+        {/* Loading bar */}
+        <div style={{ width:200, height:2, background:"rgba(255,255,255,.1)", borderRadius:1, margin:"0 auto 14px", overflow:"hidden" }}>
+          <div style={{ height:"100%", background:T.greenb, borderRadius:1, width: splashDone?"100%":"0", animation:splashDone?"none":"barFill 2s ease forwards" }} />
+        </div>
+        <div style={{ fontSize:11, color:"rgba(255,255,255,.2)", letterSpacing:2, textTransform:"uppercase" }}>{splashDone?"Ready":"Initialising"}</div>
+      </div>
+      <div style={{ position:"absolute", bottom:24, fontSize:11, color:"rgba(255,255,255,.15)", letterSpacing:1 }}>© 2026 Zelvarix.ai · Powered by Claude AI</div>
+    </div>
+  );
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // AUTH
+  // ══════════════════════════════════════════════════════════════════════════
+  if (appView==="auth") {
+    const isLogin = authMode==="login";
+    return (
+      <div style={{ minHeight:"100vh", background:T.cream, display:"flex", fontFamily:"'DM Sans',sans-serif" }}>
+        <style>{GLOBAL_CSS}</style>
+        {/* Left — branding panel */}
+        <div style={{ width:"42%", background:T.ink, padding:"52px 56px", display:"flex", flexDirection:"column", justifyContent:"space-between", position:"relative", overflow:"hidden" }}>
+          <div style={{ position:"absolute", bottom:-120, right:-80, width:400, height:400, borderRadius:"50%", background:"rgba(255,255,255,.02)", pointerEvents:"none" }} />
+          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:30, color:T.cream, letterSpacing:-.5 }}>Zelvarix<span style={{ color:T.greenb, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
+          <div>
+            <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:40, color:T.cream, lineHeight:1.15, letterSpacing:-.8, marginBottom:20 }}>Find your next best customer <span style={{ color:T.greenb, fontStyle:"italic" }}>with AI.</span></div>
+            <div style={{ fontSize:14, color:T.inkm, lineHeight:1.8, marginBottom:36 }}>Zelvarix combines 1.3B+ verified contacts with Claude AI to give your team the intelligence edge.</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:36 }}>
+              {[["1.3B+","Verified Contacts"],["121M+","Companies"],["95%","Data Accuracy"],["60s","Time to First Lead"]].map(([v,l])=>(
+                <div key={l} style={{ borderTop:`1px solid rgba(255,255,255,.1)`, paddingTop:12 }}>
+                  <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:26, color:T.cream, marginBottom:2 }}>{v}</div>
+                  <div style={{ fontSize:11, color:T.inkm, letterSpacing:.3 }}>{l}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ borderTop:`1px solid rgba(255,255,255,.08)`, paddingTop:20 }}>
+              <div style={{ fontSize:13, color:"rgba(255,255,255,.5)", lineHeight:1.7, fontStyle:"italic", marginBottom:12 }}>"Zelvarix cut our prospecting time by 70%."</div>
+              <div style={{ fontSize:12, color:T.inkm }}>Jamie Morrison, VP of Sales · TechCorp</div>
+            </div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,.15)", letterSpacing:.5 }}>Trusted by 12,000+ sales teams</div>
+            <button onClick={()=>setAppView("pricing")} style={{ fontSize:12, color:T.greenb, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textDecoration:"underline" }}>View pricing →</button>
+          </div>
+        </div>
+
+        {/* Right — form */}
+        <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:48 }}>
+          <div style={{ width:"100%", maxWidth:400, animation:"fadeIn .4s ease" }}>
+            <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:30, color:T.ink, marginBottom:6, letterSpacing:-.5 }}>{isLogin?"Welcome back":"Create account"}</div>
+            <div style={{ fontSize:13, color:T.inkm, marginBottom:28 }}>{isLogin?"Sign in to your workspace":"Start your 7-day free trial. No card required."}</div>
+
+            {/* Social */}
+            <div style={{ display:"flex", gap:10, marginBottom:20 }}>
+              {[["Continue with Google","google"],["Continue with LinkedIn","linkedin_oidc"]].map(([l,p])=>(
+                <button key={l} className="btn-ghost" onClick={()=>sb.auth.signInWithOAuth({ provider:p, options:{ redirectTo: window.location.origin } })} style={{ flex:1, padding:"9px 12px", background:"#fff", border:`1px solid ${T.border}`, borderRadius:4, fontSize:12, fontWeight:500, color:T.inkl, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all .15s" }}>{l}</button>
+              ))}
+            </div>
+
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:20 }}>
+              <div style={{ flex:1, height:1, background:T.border }} />
+              <span style={{ fontSize:11, color:T.inkmut }}>or email</span>
+              <div style={{ flex:1, height:1, background:T.border }} />
+            </div>
+
+            {/* Fields */}
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              {!isLogin && (
+                <div>
+                  <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Full name</label>
+                  <input className="input-base" value={signupData.name} onChange={e=>setSignupData(p=>({...p,name:e.target.value}))} placeholder="Jane Smith" />
+                </div>
+              )}
+              <div>
+                <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Work email</label>
+                <input className="input-base" type="email" value={isLogin?loginData.email:signupData.email} onChange={e=>isLogin?setLoginData(p=>({...p,email:e.target.value})):setSignupData(p=>({...p,email:e.target.value}))} placeholder="you@company.com" />
+              </div>
+              <div>
+                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
+                  <label style={{ fontSize:12, fontWeight:500, color:T.inkl }}>Password</label>
+                  {isLogin && <button style={{ fontSize:12, color:T.green, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Forgot?</button>}
+                </div>
+                <input className="input-base" type="password" value={isLogin?loginData.password:signupData.password} onChange={e=>isLogin?setLoginData(p=>({...p,password:e.target.value})):setSignupData(p=>({...p,password:e.target.value}))} placeholder={isLogin?"Password":"Min. 8 characters"} onKeyDown={e=>e.key==="Enter"&&(isLogin?handleLogin():null)} />
+              </div>
+              {!isLogin && (
+                <div>
+                  <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Confirm password</label>
+                  <input className="input-base" type="password" value={signupData.confirm} onChange={e=>setSignupData(p=>({...p,confirm:e.target.value}))} placeholder="Re-enter password" onKeyDown={e=>e.key==="Enter"&&handleSignup()} />
+                </div>
+              )}
+              {!isLogin && (
+                <label style={{ display:"flex", alignItems:"flex-start", gap:8, fontSize:12, color:T.inkm, cursor:"pointer", lineHeight:1.6 }}>
+                  <input type="checkbox" checked={termsAccepted} onChange={e=>setTermsAccepted(e.target.checked)} style={{ marginTop:2, cursor:"pointer", flexShrink:0 }} />
+                  <span>
+                    I agree to the{" "}
+                    <button type="button" onClick={(e)=>{e.preventDefault(); setAppView("terms");}} style={{ color:T.green, fontWeight:600, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontSize:12, padding:0, textDecoration:"underline" }}>Terms of Service</button>
+                    {" "}and{" "}
+                    <button type="button" onClick={(e)=>{e.preventDefault(); setAppView("privacy");}} style={{ color:T.green, fontWeight:600, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontSize:12, padding:0, textDecoration:"underline" }}>Privacy Policy</button>
+                  </span>
+                </label>
+              )}
+              {authError && <div style={{ fontSize:12, color:T.red, background:T.redl, border:`1px solid ${T.redb}`, borderRadius:4, padding:"8px 12px" }}>⚠ {authError}</div>}
+              <button onClick={isLogin?handleLogin:handleSignup} disabled={authLoading || (!isLogin && !termsAccepted)} style={{ padding:"11px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:14, cursor:(authLoading || (!isLogin && !termsAccepted))?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:(authLoading || (!isLogin && !termsAccepted))?.5:1, marginTop:4 }}>
+                {authLoading ? <><Spinner />{isLogin?"Signing in…":"Creating account…"}</> : isLogin?"Sign in →":"Create account →"}
+              </button>
+            </div>
+
+            <div style={{ textAlign:"center", marginTop:20, fontSize:13, color:T.inkm }}>
+              {isLogin?"No account? ":"Have an account? "}
+              <button onClick={()=>{setAuthMode(isLogin?"signup":"login");setAuthError("");}} style={{ color:T.green, fontWeight:600, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontSize:13 }}>
+                {isLogin?"Sign up free":"Sign in"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ONBOARDING
+  // ══════════════════════════════════════════════════════════════════════════
+  if (appView==="onboard") {
+    const canLaunch = onboardData.name.trim().length > 0;
+    async function saveAndLaunch() {
+      try {
+        if (currentUser) {
+          await sb.from("profiles").upsert({
+            id: currentUser.id,
+            name: onboardData.name,
+            company: onboardData.company || null,
+            role: onboardData.role || null,
+            goal: onboardData.goal || null,
+            referral_source: onboardData.referralSource || null,
+            booking_link: onboardData.bookingLink || null,
+          });
+          if (onboardData.bookingLink) setBookingLink(onboardData.bookingLink);
+        }
+      } catch(e) { console.warn("Profile save error:", e); }
+      setAppView("app");
+    }
+    return (
+      <div style={{ minHeight:"100vh", background:T.cream, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans',sans-serif", padding:"40px 20px" }}>
+        <style>{GLOBAL_CSS}</style>
+        <div style={{ width:480, animation:"fadeIn .4s ease" }}>
+          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:28, color:T.ink, marginBottom:6, letterSpacing:-.3 }}>Zelvarix<span style={{ color:T.green, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
+          <div style={{ fontSize:12, color:T.inkmut, marginBottom:24 }}>Let's get you set up — just a few quick details.</div>
+          <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:6, padding:"32px 32px 28px", boxShadow:`0 2px 16px ${T.shadow}` }}>
+
+            <div style={{ marginBottom:16 }}>
+              <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Full name</label>
+              <input autoFocus className="input-base" value={onboardData.name} onChange={e=>setOnboardData(p=>({...p,name:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&canLaunch&&saveAndLaunch()} placeholder="Full name" />
+            </div>
+
+            <div style={{ display:"flex", gap:12, marginBottom:16 }}>
+              <div style={{ flex:1 }}>
+                <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Company <span style={{ color:T.inkmut, fontWeight:400 }}>(optional)</span></label>
+                <input className="input-base" value={onboardData.company} onChange={e=>setOnboardData(p=>({...p,company:e.target.value}))} placeholder="Company name" />
+              </div>
+              <div style={{ flex:1 }}>
+                <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Role <span style={{ color:T.inkmut, fontWeight:400 }}>(optional)</span></label>
+                <input className="input-base" value={onboardData.role} onChange={e=>setOnboardData(p=>({...p,role:e.target.value}))} placeholder="e.g. AE, SDR, Founder" />
+              </div>
+            </div>
+
+            <div style={{ marginBottom:16 }}>
+              <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Primary goal <span style={{ color:T.inkmut, fontWeight:400 }}>(optional)</span></label>
+              <input className="input-base" value={onboardData.goal} onChange={e=>setOnboardData(p=>({...p,goal:e.target.value}))} placeholder="e.g. Book 10 demos/month" />
+            </div>
+
+            <div style={{ marginBottom:16 }}>
+              <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>How did you hear about us? <span style={{ color:T.inkmut, fontWeight:400 }}>(optional)</span></label>
+              <select className="input-base" value={onboardData.referralSource} onChange={e=>setOnboardData(p=>({...p,referralSource:e.target.value}))} style={{ cursor:"pointer" }}>
+                <option value="">Select one…</option>
+                {REFERRAL_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+
+            <div style={{ marginBottom:8 }}>
+              <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Booking link <span style={{ color:T.inkmut, fontWeight:400 }}>(optional)</span></label>
+              <input className="input-base" value={onboardData.bookingLink} onChange={e=>setOnboardData(p=>({...p,bookingLink:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&canLaunch&&saveAndLaunch()} placeholder="https://calendly.com/your-name/30min" />
+              <div style={{ fontSize:11, color:T.inkmut, marginTop:6, lineHeight:1.5 }}>Auto-appears in your AI-drafted emails. Don't have one? Sign up free at calendly.com — you can also add this later in Settings.</div>
+            </div>
+
+            <button onClick={saveAndLaunch} disabled={!canLaunch} style={{ width:"100%", padding:"11px", marginTop:14, background:canLaunch?T.ink:T.paperd, border:"none", borderRadius:4, color:canLaunch?T.cream:T.inkmut, fontWeight:600, fontSize:14, cursor:canLaunch?"pointer":"not-allowed", fontFamily:"'DM Sans',sans-serif" }}>
+              Launch Zelvarix →
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // MAIN APP — top-bar navigation + full-bleed content
+  // ══════════════════════════════════════════════════════════════════════════
+  const navItems = [
+    { id:"discover",  label:"Discover" },
+    { id:"pipeline",  label:"Pipeline" },
+    { id:"lists",     label:"Lists" },
+    ...(perms.canViewTeam     ? [{ id:"team",    label:"Team"    }] : []),
+    ...(perms.canManageBilling && !isDemo ? [{ id:"billing", label:"Billing" }] : []),
+    { id:"settings", label:"Settings" },
+  ];
+
+  const selectStyle = { padding:"7px 10px", background:"#fff", border:`1px solid ${T.border}`, borderRadius:4, color:T.inkl, fontSize:12, fontFamily:"'DM Sans',sans-serif", outline:"none", cursor:"pointer", width:"100%", appearance:"none" };
+
+  return (
+    <div style={{ minHeight:"100vh", background:T.cream, fontFamily:"'DM Sans',sans-serif", color:T.ink }}>
+      <style>{GLOBAL_CSS}</style>
+
+      {/* ── TOP NAV BAR ─────────────────────────────────────────────────── */}
+      <div style={{ height:52, background:"#fff", borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", padding:"0 24px", gap:0, position:"sticky", top:0, zIndex:50, boxShadow:`0 1px 4px ${T.shadow}` }}>
+        {/* Wordmark */}
+        <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:20, color:T.ink, marginRight:32, letterSpacing:-.3, flexShrink:0 }}>Zelvarix<span style={{ color:T.green, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
+
+        {/* Nav links */}
+        <div style={{ display:"flex", gap:0, flex:1 }}>
+          {navItems.map(n=>(
+            <button key={n.id} onClick={()=>setView(n.id)} style={{ padding:"0 16px", height:52, background:"none", border:"none", borderBottom:`2px solid ${view===n.id?T.green:"transparent"}`, color:view===n.id?T.green:T.inkm, fontWeight:view===n.id?600:400, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all .15s", whiteSpace:"nowrap" }}>{n.label}</button>
+          ))}
+        </div>
+
+        {/* Right — credits + user */}
+        <div style={{ display:"flex", alignItems:"center", gap:16, flexShrink:0 }}>
+          <div style={{ fontSize:12, color:T.inkm, display:"flex", gap:12 }}>
+            <span>
+              <span style={{ fontFamily:"'DM Mono',monospace", color:T.green, fontWeight:500 }}>{revealsTotal - revealsUsed}</span>
+              <span style={{ color:T.inkmut }}> reveals</span>
+            </span>
+            <span>
+              <span style={{ fontFamily:"'DM Mono',monospace", color:T.amber, fontWeight:500 }}>{searchesTotal - searchesUsed}</span>
+              <span style={{ color:T.inkmut }}> searches</span>
+            </span>
+          </div>
+          {/* User menu */}
+          <div style={{ position:"relative" }}>
+            <button onClick={()=>setShowUserMenu(s=>!s)} style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 10px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:4, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+              <div style={{ width:24, height:24, borderRadius:3, background:T.greenl, border:`1px solid ${T.greenb}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, color:T.green }}>{displayAvatar}</div>
+              <span style={{ fontSize:12, fontWeight:500, color:T.inkl }}>{displayName}</span>
+              <span style={{ fontSize:10, color:T.inkmut }}>{showUserMenu?"▲":"▼"}</span>
+            </button>
+            {showUserMenu && (
+              <div style={{ position:"absolute", top:"calc(100% + 6px)", right:0, width:240, background:"#fff", border:`1px solid ${T.border}`, borderRadius:6, boxShadow:`0 4px 20px ${T.shadowd}`, zIndex:100, overflow:"hidden" }}>
+                {teamMembers.filter(m=>m.status==="active").length > 1 && (
+                  <div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:600, color:T.inkmut, textTransform:"uppercase", letterSpacing:1 }}>Switch user</div>
+                )}
+                {teamMembers.filter(m=>m.status==="active").length > 1 && teamMembers.filter(m=>m.status==="active").map(m=>{
+                  const rp = ROLE_PERMISSIONS[m.role];
+                  return (
+                    <button key={m.id} onClick={()=>{ setActiveUserId(m.id); setShowUserMenu(false); if(view==="team"&&!ROLE_PERMISSIONS[m.role].canViewTeam)setView("discover"); if(view==="billing"&&!ROLE_PERMISSIONS[m.role].canManageBilling)setView("discover"); }} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"8px 14px", background:m.id===activeUserId?"#f8faf8":"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textAlign:"left" }}>
+                      <div style={{ width:26, height:26, borderRadius:3, background:rp.bg, border:`1px solid ${rp.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, color:rp.color, flexShrink:0 }}>{m.avatar}</div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:12, fontWeight:500, color:T.ink }}>{m.name}</div>
+                        <RoleBadge role={m.role} />
+                      </div>
+                      {m.id===activeUserId && <span style={{ color:T.green, fontSize:12 }}>✓</span>}
+                    </button>
+                  );
+                })}
+                
+                <div style={{ borderTop:`1px solid ${T.border}`, padding:"8px 14px" }}>
+                  <div style={{ padding:"8px 14px 6px", borderTop:`1px solid ${T.border}` }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:T.ink, marginBottom:2 }}>{displayName}</div>
+                  <div style={{ fontSize:11, color:T.inkm, marginBottom:10 }}>{displayEmail}</div>
+                  <button onClick={async()=>{ await sb.auth.signOut(); setCurrentUser(null); setSbTeam(null); setAppView("auth"); setShowUserMenu(false); }} style={{ fontSize:12, color:T.red, background:T.redl, border:`1px solid ${T.redb}`, borderRadius:4, padding:"6px 12px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", gap:6, width:"100%", justifyContent:"center", fontWeight:500 }}>⏏ Sign out</button>
+                </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── TRIAL COUNTDOWN BANNER ──────────────────────────────────────── */}
+      {trialDaysLeft !== null && trialDaysLeft >= 0 && !isDemo && (
+        <div style={{ background: trialDaysLeft <= 2 ? "#fdecea" : T.greenl, borderBottom:`1px solid ${trialDaysLeft <= 2 ? "#f5c6c0" : T.greenb}`, padding:"8px 24px", fontSize:12.5, color: trialDaysLeft <= 2 ? T.red : T.green, fontWeight:500, textAlign:"center" }}>
+          {trialDaysLeft === 0
+            ? "Your free trial ends today — upgrade now to keep uninterrupted access."
+            : `${trialDaysLeft} day${trialDaysLeft===1?"":"s"} left in your free trial.`}
+          {" "}
+          <button onClick={()=>{ setView("billing"); }} style={{ background:"none", border:"none", color:"inherit", textDecoration:"underline", cursor:"pointer", fontWeight:700, fontSize:"inherit", fontFamily:"'DM Sans',sans-serif", padding:0 }}>View billing</button>
+        </div>
+      )}
+
+      {/* ── CONTENT ─────────────────────────────────────────────────────── */}
+      <div style={{ display:"flex", minHeight:"calc(100vh - 52px)" }}>
+
+        {/* ── DISCOVER ────────────────────────────────────────────────── */}
+        {view==="discover" && (
+          <div style={{ flex:1, display:"flex", overflow:"hidden", height:"calc(100vh - 52px)" }}>
+
+            {/* Filter sidebar */}
+            <div style={{ width:220, background:"#fff", borderRight:`1px solid ${T.border}`, padding:"20px 16px", overflowY:"auto", flexShrink:0 }}>
+              <div style={{ fontSize:10, fontWeight:600, color:T.inkmut, textTransform:"uppercase", letterSpacing:1.5, marginBottom:16 }}>Filter</div>
+
+              {/* Search */}
+              <div style={{ marginBottom:16 }}>
+                <input className="input-base" value={searchQuery} onChange={e=>{ setSearchQuery(e.target.value); if(e.target.value) setFilters(p=>({...p,companyKeyword:"",companyName:""})); }} onKeyDown={e=>e.key==="Enter"&&useLiveData&&runPDLSearch(1,false)} placeholder="Search name…" style={{ fontSize:12, padding:"7px 10px" }} />
+              </div>
+
+              {[
+                { label:"Industry", jsx: (
+                  <IndustrySearch
+                    value={filters.pdlIndustry}
+                    onChange={item=>setFilters(p=>({...p, pdlIndustry:item||""}))}
+                  />
+                )},
+                { label:"Company Name", jsx: (
+                  <input className="input-base" value={filters.companyName} onChange={e=>{ const v=e.target.value; setFilters(p=>({...p,companyName:v})); if(v) setFilters(p=>({...p,companyKeyword:""})); if(v) setSearchQuery(""); }} onKeyDown={e=>e.key==="Enter"&&useLiveData&&runPDLSearch(1,false)} placeholder="e.g. Chevron, HCA…" style={{ fontSize:12, padding:"7px 10px" }} />
+                )},
+                { label:"Company Size", jsx: (
+                  <select style={selectStyle} value={filters.size} onChange={e=>setFilters(p=>({...p,size:e.target.value}))}>
+                    {COMPANY_SIZES.map(o=><option key={o}>{o}</option>)}
+                  </select>
+                )},
+                { label:"Seniority", jsx: (
+                  <select style={selectStyle} value={filters.seniority} onChange={e=>setFilters(p=>({...p,seniority:e.target.value}))}>
+                    {SENIORITY.map(o=><option key={o}>{o}</option>)}
+                  </select>
+                )},
+                { label:"Department", jsx: (
+                  <select style={selectStyle} value={filters.department} onChange={e=>setFilters(p=>({...p,department:e.target.value}))}>
+                    {DEPARTMENTS.map(o=><option key={o}>{o}</option>)}
+                  </select>
+                )},
+                { label:"Revenue", jsx: (
+                  <select style={selectStyle} value={filters.revenue} onChange={e=>setFilters(p=>({...p,revenue:e.target.value}))}>
+                    {REVENUES.map(o=><option key={o}>{o}</option>)}
+                  </select>
+                )},
+                { label:"State", jsx: (
+                  <select style={selectStyle} value={filters.state} onChange={e=>setFilters(p=>({...p,state:e.target.value}))}>
+                    {US_STATES.map(o=><option key={o}>{o}</option>)}
+                  </select>
+                )},
+                { label:"Company Keyword", jsx: (
+                  <input className="input-base" value={filters.companyKeyword} onChange={e=>{ const v=e.target.value; setFilters(p=>({...p,companyKeyword:v,companyName:""})); if(v) setSearchQuery(""); }} onKeyDown={e=>e.key==="Enter"&&useLiveData&&runPDLSearch(1,false)} placeholder="e.g. beauty salon, funeral…" style={{ fontSize:12, padding:"7px 10px" }} />
+                )},
+                { label:"City", jsx: (
+                  <input className="input-base" value={filters.city} onChange={e=>setFilters(p=>({...p,city:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&useLiveData&&runPDLSearch(1,false)} placeholder="e.g. Houston" style={{ fontSize:12, padding:"7px 10px" }} />
+                )},
+              ].map(f=>(
+                <div key={f.label} style={{ marginBottom:14 }}>
+                  <div style={{ fontSize:11, fontWeight:500, color:T.inkl, marginBottom:5 }}>{f.label}</div>
+                  {f.jsx}
+                </div>
+              ))}
+
+              {useLiveData && (
+                <button onClick={()=>runPDLSearch(1, false)} disabled={pdlLoading} style={{ width:"100%", padding:"9px", marginBottom:8, background:pdlLoading?T.paperd:T.ink, border:"none", borderRadius:4, color:pdlLoading?T.inkmut:T.cream, fontWeight:600, fontSize:13, cursor:pdlLoading?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif" }}>{pdlLoading?"Searching…":"🔍 Search"}</button>
+              )}
+              <button onClick={()=>{ setSearchQuery(""); setFilters({ pdlIndustry:"", companyName:"", companyKeyword:"", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" }); }} style={{ fontSize:11, color:T.inkmut, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textDecoration:"underline", marginTop:4 }}>Reset</button>
+            </div>
+
+            {/* Results table */}
+            <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+
+              {/* Toolbar */}
+              <div style={{ padding:"10px 20px", borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"space-between", background:"#fff", flexShrink:0, gap:10 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  {/* Demo: show Sample Data badge only. Paid: show Live Data badge only. Others: show toggle */}
+                  {isDemo ? (
+                    <div style={{ fontSize:11, fontWeight:600, padding:"4px 10px", border:`1px solid ${T.amber}`, borderRadius:3, background:T.amberl, color:T.amber, display:"flex", alignItems:"center", gap:5 }}>
+                      <span style={{ width:7, height:7, borderRadius:"50%", background:T.amber, display:"inline-block" }} />
+                      Demo Mode
+                    </div>
+                  ) : isPaidCustomer ? (
+                    <div style={{ fontSize:11, fontWeight:600, padding:"4px 10px", border:`1px solid ${T.green}`, borderRadius:3, background:T.greenl, color:T.green, display:"flex", alignItems:"center", gap:5 }}>
+                      <span style={{ width:7, height:7, borderRadius:"50%", background:T.green, display:"inline-block", animation:pdlLoading?"pulse 1s infinite":"none" }} />
+                      Live Data
+                    </div>
+                  ) : (
+                    <button onClick={()=>{ const next=!useLiveData; setUseLiveData(next); if(next) runPDLSearch(1,false); }} style={{ fontSize:11, fontWeight:600, padding:"4px 10px", border:`1px solid ${useLiveData?T.green:T.border}`, borderRadius:3, background:useLiveData?T.greenl:"#fff", color:useLiveData?T.green:T.inkm, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", gap:5 }}>
+                      <span style={{ width:7, height:7, borderRadius:"50%", background:useLiveData?T.green:T.inkmut, display:"inline-block", animation:useLiveData&&pdlLoading?"pulse 1s infinite":"none" }} />
+                      {useLiveData ? "Live Data" : "Sample Data"}
+                    </button>
+                  )}
+                  {pdlError && <span style={{ fontSize:11, color:T.amber }}>{pdlError}</span>}
+                  {isDemo && <span style={{ fontSize:11, fontWeight:600, color:T.amber, background:T.amberl, border:`1px solid ${T.amberb}`, borderRadius:3, padding:"3px 8px" }}>Demo Mode — Sample Data Only</span>}
+                  <span style={{ fontSize:13, color:T.inkm }}><span style={{ fontFamily:"'DM Mono',monospace", color:T.green, fontWeight:500 }}>{useLiveData ? displayTotal.toLocaleString() : sorted.length}</span> {useLiveData ? "live contacts" : `of ${MOCK_CONTACTS.length} samples`}</span>
+                  <button onClick={()=>{ setSelectMode(s=>!s); setSelectedForExport(new Set()); }} style={{ fontSize:11, fontWeight:500, padding:"4px 10px", border:`1px solid ${selectMode?T.green:T.border}`, borderRadius:3, background:selectMode?T.greenl:"#fff", color:selectMode?T.green:T.inkm, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all .15s" }}>
+                    {selectMode?"✓ Selecting":"Select"}
+                  </button>
+                  {selectMode && (
+                    <button onClick={()=>{ const allIds=new Set(sorted.map(c=>c.id)); const all=sorted.every(c=>selectedForExport.has(c.id)); setSelectedForExport(all?new Set():allIds); }} style={{ fontSize:11, padding:"4px 10px", border:`1px solid ${T.border}`, borderRadius:3, background:"#fff", color:T.inkm, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+                      {sorted.every(c=>selectedForExport.has(c.id))?"Deselect all":"Select all"}
+                    </button>
+                  )}
+                </div>
+                <div style={{ display:"flex", gap:8 }}>
+                  {selectMode && selectedForExport.size>0 && (
+                    <button onClick={()=>downloadCSV(sorted.filter(c=>selectedForExport.has(c.id)))} style={{ fontSize:12, fontWeight:500, padding:"5px 12px", border:`1px solid ${T.greenb}`, borderRadius:3, background:T.greenl, color:T.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>↓ Selected ({selectedForExport.size})</button>
+                  )}
+                  {selectMode && selectedForExport.size>0 && (
+                    <button onClick={()=>{
+                      const selected = sorted.filter(c=>selectedForExport.has(c.id));
+                      setBulkEmailContacts(selected);
+                      setBulkEmailResults({});
+                      setShowBulkEmail(true);
+                    }} style={{ fontSize:12, fontWeight:600, padding:"5px 12px", border:`1px solid ${T.greenb}`, borderRadius:3, background:T.green, color:"#fff", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>✦ Generate emails ({selectedForExport.size})</button>
+                  )}
+                  {!perms.canExport
+                    ? <span style={{ fontSize:11, color:T.amber, background:T.amberl, border:`1px solid ${T.amberb}`, borderRadius:3, padding:"5px 10px" }}>🔒 Viewer — no export</span>
+                    : <button onClick={()=>downloadCSV(sorted)} style={{ fontSize:12, fontWeight:500, padding:"5px 12px", border:`1px solid ${T.border}`, borderRadius:3, background:"#fff", color:T.inkl, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>↓ Export CSV</button>
+                  }
+                </div>
+              </div>
+
+              {/* Table header */}
+              <div style={{ display:"grid", gridTemplateColumns:`${selectMode?"28px ":""}2.2fr 1.4fr 1fr 0.7fr 0.7fr 80px 60px`, padding:"7px 20px", borderBottom:`1px solid ${T.border}`, background:T.paper, flexShrink:0 }}>
+                {[...(selectMode?[""]:[]), "Name","Company","Industry","Location","Seniority","Score",""].map((h,i)=>(
+                  <div key={i} style={{ fontSize:10, fontWeight:600, color:T.inkmut, textTransform:"uppercase", letterSpacing:.8 }}>{h}</div>
+                ))}
+              </div>
+
+              {/* Table rows */}
+              <div style={{ flex:1, overflowY:"auto" }}>
+                {pdlLoading && useLiveData && pdlContacts.length===0 ? (
+                  <div style={{ textAlign:"center", padding:"60px 20px" }}>
+                    <div style={{ width:32, height:32, border:`3px solid ${T.paperd}`, borderTopColor:T.green, borderRadius:"50%", animation:"spin .8s linear infinite", margin:"0 auto 14px" }} />
+                    <div style={{ fontSize:13, color:T.inkm }}>Searching live contacts…</div>
+                  </div>
+                ) : sorted.length===0 ? (
+                  <div style={{ textAlign:"center", padding:"60px 20px" }}>
+                    <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.inkm, marginBottom:8 }}>No results found</div>
+                    <div style={{ fontSize:13, color:T.inkmut, marginBottom:16 }}>Try adjusting your filters or search term.</div>
+                    <button onClick={()=>{ setSearchQuery(""); setFilters({ pdlIndustry:"", companyName:"", companyKeyword:"", size:"Any Size", seniority:"Any Seniority", department:"Any Department", revenue:"Any Revenue", state:"Any State", city:"" }); }} style={{ fontSize:12, padding:"7px 16px", background:T.ink, border:"none", borderRadius:3, color:T.cream, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Clear filters</button>
+                  </div>
+                ) : (
+                  <>{sorted.map(c=>(
+                    <div key={c.id} className="row-hover" onClick={()=>setSelectedContact(selectedContact?.id===c.id?null:c)} style={{ display:"grid", gridTemplateColumns:`${selectMode?"28px ":""}2.2fr 1.4fr 1fr 0.7fr 0.7fr 80px 60px`, padding:"9px 20px", borderBottom:`1px solid ${T.border}`, alignItems:"center", cursor:"pointer", background:selectedContact?.id===c.id?T.greenl:"#fff", transition:"background .1s", position:"relative" }}>
+                      {selectMode && (
+                        <div onClick={e=>{e.stopPropagation();toggleExport(c.id);}} style={{ width:16, height:16, borderRadius:3, border:`1.5px solid ${selectedForExport.has(c.id)?T.green:T.borderd}`, background:selectedForExport.has(c.id)?T.green:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"all .1s" }}>
+                          {selectedForExport.has(c.id) && <span style={{ color:"#fff", fontSize:10, lineHeight:1 }}>✓</span>}
+                        </div>
+                      )}
+                      <div style={{ minWidth:0 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:2 }}>
+                          <span style={{ fontSize:13, fontWeight:500, color:T.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.name}</span>
+                          {c.verified && <span style={{ fontSize:9, fontWeight:600, color:T.green, background:T.greenl, border:`1px solid ${T.greenb}`, padding:"1px 5px", borderRadius:2, letterSpacing:.5, flexShrink:0 }}>VERIFIED</span>}
+                          {savedIds.has(c.id) && <span style={{ fontSize:10, color:T.amber, flexShrink:0 }}>★</span>}
+                        </div>
+                        <div style={{ fontSize:11, color:T.inkm, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.title}</div>
+                      </div>
+                      <div style={{ fontSize:12, color:T.inkl, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.company}</div>
+                      <div style={{ fontSize:11, color:T.inkm, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.industry}</div>
+                      <div style={{ fontSize:11, color:T.inkm, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.location.split(",")[1]?.trim()||c.location}</div>
+                      <div style={{ fontSize:11, color:T.inkm }}>{c.seniority}</div>
+                      <div><ScorePill score={c.score} /></div>
+                      <div style={{ display:"flex", gap:4, justifyContent:"flex-end", alignItems:"center" }}>
+                        {exportedIds.has(c.id) && <span style={{ fontSize:9, fontWeight:700, color:T.inkm, background:T.paper, border:`1px solid ${T.border}`, borderRadius:2, padding:"1px 4px" }}>CSV</span>}
+                        {savedIds.has(c.id) && <span style={{ fontSize:9, fontWeight:700, color:T.amber, background:T.amberl, border:`1px solid ${T.amberb}`, borderRadius:2, padding:"1px 4px" }}>★</span>}
+                        {useLiveData && !isDemo && !revealedIds.has(c.id) && revealCache[c.id] && (
+                          <button onClick={e=>{e.stopPropagation();revealContact(c);}} style={{ fontSize:9, fontWeight:700, padding:"3px 6px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, cursor:"pointer", color:T.green, fontFamily:"'DM Sans',sans-serif", whiteSpace:"nowrap" }}>Reveal</button>
+                        )}
+                        <button onClick={e=>{e.stopPropagation();setAiContact(c);}} style={{ width:26, height:26, background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, cursor:"pointer", fontSize:12, color:T.green, display:"flex", alignItems:"center", justifyContent:"center" }} title="AI Insights — ice breakers, scoring & email drafts">✦</button>
+                        <button onClick={e=>{e.stopPropagation();toggleSave(c);}} style={{ width:26, height:26, background:savedIds.has(c.id)?T.amberl:"#fff", border:`1px solid ${savedIds.has(c.id)?T.amberb:T.border}`, borderRadius:3, cursor:"pointer", fontSize:12, color:savedIds.has(c.id)?T.amber:T.inkmut, display:"flex", alignItems:"center", justifyContent:"center" }} title={savedIds.has(c.id)?"Remove from saved contacts":"Save this contact"}>{savedIds.has(c.id)?"★":"☆"}</button>
+                        <button onClick={e=>{e.stopPropagation();setListPickerFor(listPickerFor?.id===c.id?null:c);}} style={{ width:26, height:26, background:"#fff", border:`1px solid ${T.border}`, borderRadius:3, cursor:"pointer", fontSize:14, color:T.inkmut, display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1 }} title="Add to a list">+</button>
+                        {listPickerFor?.id === c.id && (
+                          <div onClick={e=>e.stopPropagation()} style={{ position:"absolute", top:"100%", right:8, marginTop:4, background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, boxShadow:`0 6px 24px ${T.shadowd}`, width:220, zIndex:100, padding:8 }}>
+                            <div style={{ fontSize:10, fontWeight:600, color:T.inkmut, textTransform:"uppercase", letterSpacing:1, padding:"4px 6px 8px" }}>Add to list</div>
+                            {lists.length === 0 && (
+                              <div style={{ fontSize:12, color:T.inkmut, padding:"4px 6px 10px" }}>No lists yet — create one below.</div>
+                            )}
+                            {lists.map(l => (
+                              <div key={l.id} onClick={()=>toggleContactInList(c, l.id)} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 6px", borderRadius:4, cursor:"pointer", fontSize:13 }} onMouseEnter={e=>e.currentTarget.style.background=T.paper} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                                <div style={{ width:16, height:16, borderRadius:3, border:`1.5px solid ${listMemberships[l.id]?.has(c.id)?T.green:T.borderd}`, background:listMemberships[l.id]?.has(c.id)?T.green:"#fff", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                                  {listMemberships[l.id]?.has(c.id) && <span style={{ color:"#fff", fontSize:10, lineHeight:1 }}>✓</span>}
+                                </div>
+                                <span style={{ color:T.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{l.name}</span>
+                              </div>
+                            ))}
+                            <div style={{ borderTop:`1px solid ${T.border}`, marginTop:6, paddingTop:6 }}>
+                              <button onClick={async()=>{
+                                const n = prompt("List name?");
+                                if (!n) return;
+                                try {
+                                  if (sbTeam && currentUser) {
+                                    const { data } = await sb.from("lists").insert({ team_id:sbTeam.id, created_by:currentUser.id, name:n }).select().single();
+                                    if (data) setLists(p=>[...p,{ id:data.id, name:n, count:0 }]);
+                                  } else {
+                                    setLists(p=>[...p,{ id:Date.now(), name:n, count:0 }]);
+                                  }
+                                } catch(e) { console.warn("List create error:", e); setLists(p=>[...p,{ id:Date.now(), name:n, count:0 }]); }
+                              }} style={{ width:"100%", textAlign:"left", fontSize:12, fontWeight:600, color:T.green, background:"none", border:"none", cursor:"pointer", padding:"6px", fontFamily:"'DM Sans',sans-serif" }}>+ New list</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {useLiveData && pdlHasMore && (
+                    <button onClick={()=>runPDLSearch(pdlPage+1, true)} disabled={pdlLoading} style={{ width:"100%", padding:"10px", margin:"8px 0 16px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:5, color:T.inkl, fontWeight:500, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+                      {pdlLoading ? "Loading…" : "Load more contacts"}
+                    </button>
+                  )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Contact detail panel */}
+            {selectedContact && (
+              <div style={{ width:280, background:"#fff", borderLeft:`1px solid ${T.border}`, padding:20, overflowY:"auto", flexShrink:0, animation:"slideIn .2s ease" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
+                  <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:18, color:T.ink, lineHeight:1.2 }}>{selectedContact.name}</div>
+                  <button onClick={()=>setSelectedContact(null)} style={{ background:"none", border:"none", color:T.inkmut, cursor:"pointer", fontSize:16 }}>×</button>
+                </div>
+                <div style={{ fontSize:12, color:T.inkm, marginBottom:4 }}>{selectedContact.title}</div>
+                <div style={{ fontSize:13, fontWeight:500, color:T.green, marginBottom:16 }}>{selectedContact.company}</div>
+                <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
+                  <ScorePill score={selectedContact.score} />
+                  {selectedContact.verified && <span style={{ fontSize:10, fontWeight:600, color:T.green, background:T.greenl, border:`1px solid ${T.greenb}`, padding:"2px 6px", borderRadius:2, letterSpacing:.5 }}>VERIFIED</span>}
+                </div>
+                {[["Industry",selectedContact.industry],["Location",selectedContact.location],["Employees",selectedContact.employees],["Revenue",selectedContact.revenue],["Seniority",selectedContact.seniority],["Department",selectedContact.department],
+                  ["Email", revealedIds.has(selectedContact.id) ? (revealCache[selectedContact.id]?.email || "—") : (selectedContact.email || (useLiveData ? "🔒 Click Reveal" : "—"))],
+                  ["Phone", revealedIds.has(selectedContact.id) ? (revealCache[selectedContact.id]?.phone || "—") : (selectedContact.phone || (useLiveData ? "🔒 Click Reveal" : "—"))]
+                ].map(([l,v])=>(
+                  <div key={l} style={{ marginBottom:10 }}>
+                    <div style={{ fontSize:10, fontWeight:600, color:T.inkmut, textTransform:"uppercase", letterSpacing:.8, marginBottom:2 }}>{l}</div>
+                    <div style={{ fontSize:12, color:T.inkl, wordBreak:"break-all" }}>{v||"—"}</div>
+                  </div>
+                ))}
+                <div style={{ marginTop:4, marginBottom:14 }}>
+                  <div style={{ fontSize:10, fontWeight:600, color:T.inkmut, textTransform:"uppercase", letterSpacing:.8, marginBottom:6 }}>Tags</div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+                    {selectedContact.tags.map(t=><span key={t} className="tag-chip">{t}</span>)}
+                  </div>
+                </div>
+                <button onClick={()=>setAiContact(selectedContact)} style={{ width:"100%", padding:"9px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>✦ AI Intelligence</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── PIPELINE ────────────────────────────────────────────────── */}
+        {view==="pipeline" && (
+          <div style={{ flex:1, padding:"28px 32px", overflowY:"auto" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:28 }}>
+              <SectionHeading label="Pipeline" sub={savedContacts.length > 0 ? `${savedContacts.length} contacts across all stages` : "Star contacts in Discover to add them here"} />
+              <button onClick={()=>setView("discover")} style={{ padding:"8px 16px", background:T.ink, border:"none", borderRadius:4, color:T.cream, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>+ Add contacts</button>
+            </div>
+
+            {savedContacts.length === 0 ? (
+              <div style={{ textAlign:"center", padding:"80px 20px", background:"#fff", border:`1.5px dashed ${T.paperd}`, borderRadius:8 }}>
+                <div style={{ fontSize:48, marginBottom:16 }}>📋</div>
+                <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:24, color:T.inkm, marginBottom:8 }}>Your pipeline is empty</div>
+                <div style={{ fontSize:14, color:T.inkmut, marginBottom:20, lineHeight:1.7 }}>Star contacts in the Discover tab to add them to your pipeline. Then drag them through stages as you progress.</div>
+                <button onClick={()=>setView("discover")} style={{ padding:"10px 24px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Go to Discover →</button>
+              </div>
+            ) : (
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, alignItems:"start" }}>
+                {[
+                  { stage:"New",       col:T.inkm,    bg:T.paper,   border:T.border,  icon:"◯" },
+                  { stage:"Contacted", col:T.amber,   bg:T.amberl,  border:T.amberb,  icon:"✉" },
+                  { stage:"Qualified", col:"#3466cc", bg:"#e8f3ff", border:"#bdd4fd", icon:"✓" },
+                  { stage:"Closed",    col:T.green,   bg:T.greenl,  border:T.greenb,  icon:"★" },
+                ].map(({ stage, col, bg, border, icon }) => {
+                  const stageContacts = savedContacts.filter(c => (pipelineStages[c.id] || "New") === stage);
+                  const isOver = dragOverStage === stage;
+                  return (
+                    <div key={stage}
+                      onDragOver={e=>{ e.preventDefault(); setDragOverStage(stage); }}
+                      onDragLeave={()=>setDragOverStage(null)}
+                      onDrop={async e=>{ e.preventDefault(); setDragOverStage(null); if(draggedId) await moveToStage(draggedId, stage); setDraggedId(null); }}
+                      style={{ minHeight:200, transition:"background .15s" }}>
+                      {/* Column header */}
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12, padding:"9px 12px", background:isOver?bg:"#fff", border:`1.5px solid ${isOver?col:border}`, borderRadius:5, transition:"all .15s" }}>
+                        <span style={{ fontSize:14, color:col }}>{icon}</span>
+                        <span style={{ fontSize:12, fontWeight:600, color:col, flex:1 }}>{stage}</span>
+                        <span style={{ fontSize:11, fontFamily:"'DM Mono',monospace", background:isOver?col:"rgba(0,0,0,.06)", color:isOver?"#fff":T.inkmut, padding:"1px 7px", borderRadius:3, transition:"all .15s" }}>{stageContacts.length}</span>
+                      </div>
+
+                      {/* Drop zone indicator */}
+                      {isOver && (
+                        <div style={{ border:`2px dashed ${col}`, borderRadius:5, padding:"12px", textAlign:"center", fontSize:12, color:col, marginBottom:8, background:bg }}>Drop here → {stage}</div>
+                      )}
+
+                      {/* Cards */}
+                      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                        {stageContacts.map(c=>(
+                          <div key={c.id}
+                            draggable
+                            onDragStart={()=>setDraggedId(c.id)}
+                            onDragEnd={()=>{ setDraggedId(null); setDragOverStage(null); }}
+                            style={{ background:"#fff", border:`1px solid ${draggedId===c.id?col:T.border}`, borderRadius:5, padding:"12px 14px", cursor:"grab", opacity:draggedId===c.id?.5:1, transition:"all .15s", boxShadow:draggedId===c.id?`0 4px 16px rgba(0,0,0,.12)`:"none" }}>
+                            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:3 }}>
+                              <div style={{ fontSize:13, fontWeight:600, color:T.ink, flex:1, marginRight:8 }}>{c.name}</div>
+                              <ScorePill score={c.score} />
+                            </div>
+                            <div style={{ fontSize:11, color:T.inkm, marginBottom:2 }}>{c.title}</div>
+                            <div style={{ fontSize:11, color:T.green, fontWeight:500, marginBottom:10 }}>{c.company}</div>
+                            {/* Notes */}
+                            <textarea
+                              value={c.notes || ""}
+                              onChange={e=>updateContactNoteDraft(c.id, e.target.value)}
+                              onBlur={()=>saveContactNote(c.id)}
+                              onMouseDown={e=>e.stopPropagation()}
+                              draggable={false}
+                              placeholder="Add a note…"
+                              rows={2}
+                              style={{ width:"100%", fontSize:11, padding:"5px 7px", border:`1px solid ${T.border}`, borderRadius:3, background:T.cream, color:T.inkl, fontFamily:"'DM Sans',sans-serif", marginBottom:8, outline:"none", resize:"vertical", lineHeight:1.4, cursor:"text" }}
+                            />
+                            {/* Stage selector */}
+                            <select value={pipelineStages[c.id]||"New"} onChange={async e=>await moveToStage(c.id, e.target.value)}
+                              style={{ width:"100%", fontSize:11, padding:"3px 6px", border:`1px solid ${T.border}`, borderRadius:3, background:T.paper, color:T.inkl, fontFamily:"'DM Sans',sans-serif", marginBottom:8, cursor:"pointer", outline:"none" }}>
+                              {["New","Contacted","Qualified","Closed"].map(s=><option key={s}>{s}</option>)}
+                            </select>
+                            <div style={{ display:"flex", gap:5 }}>
+                              <button onClick={()=>setAiContact(c)} style={{ flex:1, fontSize:10, fontWeight:500, padding:"4px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, color:T.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>✦ AI</button>
+                              <button onClick={()=>toggleSave(c)} style={{ flex:1, fontSize:10, fontWeight:500, padding:"4px", background:T.redl, border:`1px solid ${T.redb}`, borderRadius:3, color:T.red, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>✕ Remove</button>
+                            </div>
+                          </div>
+                        ))}
+                        {stageContacts.length === 0 && !isOver && (
+                          <div style={{ border:`1.5px dashed ${T.paperd}`, borderRadius:5, padding:"16px", textAlign:"center", fontSize:11, color:T.inkmut }}>Drag contacts here</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── LISTS ───────────────────────────────────────────────────── */}
+        {view==="lists" && (
+          <div style={{ flex:1, padding:"28px 32px", overflowY:"auto" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:28 }}>
+              <SectionHeading label="Lists" sub="★ Saved contacts is a quick catch-all. Create named lists below and use the + button on any contact to organize them further." />
+              <button onClick={async()=>{
+                const n = prompt("List name?");
+                if (!n) return;
+                try {
+                  if (sbTeam && currentUser) {
+                    const { data } = await sb.from("lists").insert({ team_id:sbTeam.id, created_by:currentUser.id, name:n }).select().single();
+                    if (data) setLists(p=>[...p,{ id:data.id, name:n, count:0 }]);
+                  } else {
+                    setLists(p=>[...p,{ id:Date.now(), name:n, count:0 }]);
+                  }
+                } catch(e) { console.warn("List create error:", e); setLists(p=>[...p,{ id:Date.now(), name:n, count:0 }]); }
+              }} style={{ padding:"8px 16px", background:T.ink, border:"none", borderRadius:4, color:T.cream, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>+ New list</button>
+            </div>
+
+            {/* Saved contacts */}
+            {savedIds.size > 0 && (
+              <div style={{ marginBottom:28 }}>
+                <div style={{ fontSize:11, fontWeight:600, color:T.green, textTransform:"uppercase", letterSpacing:1, marginBottom:12 }}>★ Saved contacts ({savedIds.size})</div>
+                <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, overflow:"hidden" }}>
+                  {MOCK_CONTACTS.filter(c=>savedIds.has(c.id)).map((c,i,arr)=>(
+                    <div key={c.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 16px", borderBottom:i<arr.length-1?`1px solid ${T.border}`:"none", background:i%2===0?"#fff":T.cream }}>
+                      <div>
+                        <div style={{ fontSize:13, fontWeight:500, color:T.ink }}>{c.name}</div>
+                        <div style={{ fontSize:11, color:T.inkm }}>{c.title} · {c.company}</div>
+                        <div style={{ fontSize:11, color:T.inkmut }}>{c.location}</div>
+                      </div>
+                      <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
+                        <ScorePill score={c.score} />
+                        <button onClick={()=>setAiContact(c)} style={{ fontSize:11, padding:"4px 8px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, color:T.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>✦ AI</button>
+                        <button onClick={()=>toggleSave(c.id)} style={{ fontSize:11, color:T.red, background:T.redl, border:`1px solid ${T.redb}`, borderRadius:3, padding:"4px 8px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Remove</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {savedIds.size === 0 && lists.length === 0 && (
+              <div style={{ textAlign:"center", padding:"60px 20px", background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, marginBottom:24 }}>
+                <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.inkm, marginBottom:8 }}>No saved contacts yet</div>
+                <div style={{ fontSize:13, color:T.inkmut, marginBottom:16 }}>Star contacts in the Discover tab to save them here.</div>
+                <button onClick={()=>setView("discover")} style={{ padding:"8px 20px", background:T.ink, border:"none", borderRadius:4, color:T.cream, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Go to Discover →</button>
+              </div>
+            )}
+
+            {/* Lists grid */}
+            {lists.length > 0 && !openListDetail && (
+              <>
+                <div style={{ fontSize:11, fontWeight:600, color:T.inkmut, textTransform:"uppercase", letterSpacing:1, marginBottom:12 }}>My lists ({lists.length})</div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
+                  {lists.map(l=>(
+                    <div key={l.id} onClick={()=>setOpenListDetail(l)} style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, padding:"18px 20px", cursor:"pointer", transition:"border-color .15s" }}>
+                      <div style={{ fontSize:10, fontWeight:600, color:T.inkmut, fontFamily:"'DM Mono',monospace", marginBottom:8 }}>LIST</div>
+                      <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:18, color:T.ink, marginBottom:4 }}>{l.name}</div>
+                      <div style={{ fontSize:12, color:T.inkm, marginBottom:12 }}>{l.count} contact{l.count===1?"":"s"}</div>
+                      <button onClick={async(e)=>{
+                        e.stopPropagation();
+                        if (!window.confirm(`Delete list "${l.name}"?`)) return;
+                        try {
+                          if (sbTeam) await sb.from("lists").delete().eq("id", l.id);
+                          setLists(p=>p.filter(x=>x.id!==l.id));
+                        } catch(e) { setLists(p=>p.filter(x=>x.id!==l.id)); }
+                      }} style={{ fontSize:11, color:T.inkmut, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", padding:0 }}>Delete</button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* List detail view */}
+            {openListDetail && (
+              <div>
+                <button onClick={()=>setOpenListDetail(null)} style={{ fontSize:12, color:T.inkm, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", padding:0, marginBottom:16 }}>← Back to lists</button>
+                <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:24, color:T.ink, marginBottom:4 }}>{openListDetail.name}</div>
+                <div style={{ fontSize:13, color:T.inkm, marginBottom:20 }}>{(listContactData[openListDetail.id]||[]).length} contact{(listContactData[openListDetail.id]||[]).length===1?"":"s"} in this list</div>
+                {(listContactData[openListDetail.id]||[]).length === 0 ? (
+                  <div style={{ textAlign:"center", padding:"60px 20px", background:"#fff", border:`1px solid ${T.border}`, borderRadius:5 }}>
+                    <div style={{ fontSize:13, color:T.inkmut, marginBottom:16 }}>No contacts in this list yet. Use the + button on any contact in Discover to add them here.</div>
+                    <button onClick={()=>setView("discover")} style={{ padding:"8px 20px", background:T.ink, border:"none", borderRadius:4, color:T.cream, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Go to Discover →</button>
+                  </div>
+                ) : (
+                  <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, overflow:"hidden" }}>
+                    {(listContactData[openListDetail.id]||[]).map((c,i,arr)=>(
+                      <div key={c.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 16px", borderBottom:i<arr.length-1?`1px solid ${T.border}`:"none", background:i%2===0?"#fff":T.cream }}>
+                        <div style={{ minWidth:0 }}>
+                          <div style={{ fontSize:13, fontWeight:500, color:T.ink }}>{c.name}</div>
+                          <div style={{ fontSize:11, color:T.inkm }}>{c.title} · {c.company}</div>
+                          <div style={{ fontSize:11, color:T.inkmut }}>{c.location}</div>
+                        </div>
+                        <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
+                          {c.score !== undefined && <ScorePill score={c.score} />}
+                          <button onClick={()=>setAiContact(c)} style={{ fontSize:11, padding:"4px 8px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:3, color:T.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>✦ AI</button>
+                          <button onClick={()=>toggleContactInList(c, openListDetail.id)} style={{ fontSize:11, color:T.red, background:T.redl, border:`1px solid ${T.redb}`, borderRadius:3, padding:"4px 8px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Remove</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── TEAM ────────────────────────────────────────────────────── */}
+        {view==="team" && (
+          <div style={{ flex:1, padding:"28px 32px", overflowY:"auto" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:28 }}>
+              <SectionHeading label="Team" sub={`${teamMembers.filter(m=>m.status==="active").length} active · ${teamMembers.filter(m=>m.status==="invited").length} pending · ${activeBilling.seats.total-teamMembers.length} seats free`} />
+              {perms.canInvite && <button onClick={()=>setShowInviteModal(true)} style={{ padding:"8px 16px", background:T.ink, border:"none", borderRadius:4, color:T.cream, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>+ Invite</button>}
+            </div>
+
+            {showInviteModal && (
+              <div style={{ position:"fixed", inset:0, background:"rgba(26,24,20,.4)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center" }} onClick={()=>setShowInviteModal(false)}>
+                <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:6, padding:28, width:380, boxShadow:`0 8px 40px ${T.shadowd}` }} onClick={e=>e.stopPropagation()}>
+                  <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.ink, marginBottom:4 }}>Invite member</div>
+                  <div style={{ fontSize:13, color:T.inkm, marginBottom:20 }}>They'll receive an email invite to join.</div>
+                  <div style={{ marginBottom:12 }}>
+                    <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Email address</label>
+                    <input className="input-base" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="colleague@company.com" />
+                  </div>
+                  <div style={{ marginBottom:20 }}>
+                    <label style={{ fontSize:12, fontWeight:500, color:T.inkl, display:"block", marginBottom:5 }}>Role</label>
+                    <select className="input-base" value={inviteRole} onChange={e=>setInviteRole(e.target.value)}>
+                      {Object.entries(ROLE_PERMISSIONS).map(([k,rp])=><option key={k} value={k}>{rp.label}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display:"flex", gap:10 }}>
+                    <button onClick={()=>setShowInviteModal(false)} style={{ flex:1, padding:"9px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:4, color:T.inkl, fontWeight:500, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
+                    <button onClick={sendInvite} style={{ flex:1, padding:"9px", background:T.ink, border:"none", borderRadius:4, color:T.cream, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Send invite</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Credit pool */}
+            <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, padding:"16px 20px", marginBottom:20 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                <div style={{ fontSize:13, fontWeight:500, color:T.ink }}>Shared credits</div>
+                <div style={{ fontSize:12, fontFamily:"'DM Mono',monospace", color:T.inkm }}>{activeBilling.credits.used} / {activeBilling.credits.total} used</div>
+              </div>
+              <div style={{ height:4, background:T.paperd, borderRadius:2, overflow:"hidden" }}>
+                <div style={{ height:"100%", width:`${Math.round(activeBilling.credits.used/activeBilling.credits.total*100)}%`, background:activeBilling.credits.used/activeBilling.credits.total>.8?T.amber:T.green, borderRadius:2 }} />
+              </div>
+            </div>
+
+            {/* Members table */}
+            <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, overflow:"hidden" }}>
+              <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr auto", padding:"8px 16px", background:T.paper, borderBottom:`1px solid ${T.border}` }}>
+                {["Member","Role","Status","Searches","Exports",""].map(h=><div key={h} style={{ fontSize:10, fontWeight:600, color:T.inkmut, textTransform:"uppercase", letterSpacing:.8 }}>{h}</div>)}
+              </div>
+              {teamMembers.map(m=>{
+                const rp = ROLE_PERMISSIONS[m.role];
+                return (
+                  <div key={m.id} style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr auto", padding:"11px 16px", borderBottom:`1px solid ${T.border}`, alignItems:"center", background:m.id===activeUserId?T.greenl:"#fff" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                      <div style={{ width:28, height:28, borderRadius:3, background:rp.bg, border:`1px solid ${rp.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:700, color:rp.color }}>{m.avatar}</div>
+                      <div>
+                        <div style={{ fontSize:13, fontWeight:500, color:T.ink }}>{m.name}{m.id===activeUserId&&<span style={{ fontSize:10, color:T.green, marginLeft:6 }}>● you</span>}</div>
+                        <div style={{ fontSize:11, color:T.inkmut }}>{m.email}</div>
+                      </div>
+                    </div>
+                    <div>
+                      {perms.canInvite&&m.id!==activeUserId
+                        ? <select value={m.role} onChange={e=>setTeamMembers(p=>p.map(tm=>tm.id===m.id?{...tm,role:e.target.value}:tm))} style={{ fontSize:11, padding:"2px 6px", border:`1px solid ${rp.border}`, borderRadius:3, background:rp.bg, color:rp.color, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", outline:"none" }}>
+                            {Object.entries(ROLE_PERMISSIONS).map(([k,r])=><option key={k} value={k}>{r.label}</option>)}
+                          </select>
+                        : <RoleBadge role={m.role} />}
+                    </div>
+                    <div><span style={{ fontSize:11, fontWeight:500, padding:"2px 8px", borderRadius:3, background:m.status==="active"?T.greenl:T.amberl, color:m.status==="active"?T.green:T.amber, border:`1px solid ${m.status==="active"?T.greenb:T.amberb}` }}>{m.status==="active"?"Active":"Invited"}</span></div>
+                    <div style={{ fontSize:12, fontFamily:"'DM Mono',monospace", color:T.inkm }}>{m.searches}</div>
+                    <div style={{ fontSize:12, fontFamily:"'DM Mono',monospace", color:T.inkm }}>{m.exports}</div>
+                    <div>{perms.canInvite&&m.id!==activeUserId&&<button onClick={()=>setTeamMembers(p=>p.filter(tm=>tm.id!==m.id))} style={{ fontSize:11, color:T.red, background:T.redl, border:`1px solid ${T.redb}`, borderRadius:3, padding:"2px 8px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Remove</button>}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Role legend */}
+            <div style={{ marginTop:20, background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, padding:"16px 20px" }}>
+              <div style={{ fontSize:11, fontWeight:600, color:T.inkmut, textTransform:"uppercase", letterSpacing:1, marginBottom:14 }}>Role permissions</div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
+                {Object.entries(ROLE_PERMISSIONS).map(([key,rp])=>(
+                  <div key={key} style={{ background:rp.bg, border:`1px solid ${rp.border}`, borderRadius:4, padding:"10px 12px" }}>
+                    <div style={{ fontSize:11, fontWeight:600, color:rp.color, marginBottom:8 }}>{rp.label}</div>
+                    {[["Search","canSearch"],["Export","canExport"],["Manage Lists","canManageLists"],["View Team","canViewTeam"],["Invite","canInvite"],["Billing","canManageBilling"]].map(([l,k])=>(
+                      <div key={k} style={{ fontSize:10, color:rp[k]?rp.color:T.inkmut, display:"flex", alignItems:"center", gap:4, marginBottom:3 }}><span>{rp[k]?"✓":"✕"}</span>{l}</div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── BILLING ─────────────────────────────────────────────────── */}
+        {view==="billing" && (
+          <div style={{ flex:1, padding:"28px 32px", overflowY:"auto" }}>
+
+            {/* ── CANCELLATION FLOW MODAL ─────────────────────────────── */}
+            {showCancelFlow && (
+              <div style={{ position:"fixed", inset:0, background:"rgba(26,24,20,.5)", zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }} onClick={()=>{ setShowCancelFlow(false); setCancelStep(1); setCancelError(""); setCancelPassword(""); }}>
+                <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:32, width:"100%", maxWidth:480, boxShadow:`0 8px 40px ${T.shadowd}` }} onClick={e=>e.stopPropagation()}>
+
+                  {/* Step indicator */}
+                  {!cancelComplete && (
+                    <div style={{ display:"flex", gap:4, marginBottom:24 }}>
+                      {[1,2,3,4].map(s=>(
+                        <div key={s} style={{ flex:1, height:3, borderRadius:2, background:s<=cancelStep?T.red:T.paperd, transition:"background .3s" }} />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* STEP 1 — What you'll lose */}
+                  {cancelStep===1 && !cancelComplete && (
+                    <>
+                      <div style={{ fontSize:22, fontFamily:"'Instrument Serif',serif", color:T.ink, marginBottom:6 }}>Before you cancel</div>
+                      <div style={{ fontSize:13, color:T.inkm, marginBottom:20, lineHeight:1.7 }}>Your account will remain active until the end of your current billing period. After that you will lose access to:</div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:24 }}>
+                        {[
+                          [`${activeBilling.credits.total - activeBilling.credits.used} remaining credits`, T.green],
+                          ["All saved contacts and lists", T.amber],
+                          ["Team member access", T.amber],
+                          ["AI Intelligence panel", T.green],
+                          ["Export history", T.inkm],
+                        ].map(([item, color])=>(
+                          <div key={item} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 12px", background:T.paper, borderRadius:5 }}>
+                            <span style={{ color:T.red, fontSize:14 }}>✕</span>
+                            <span style={{ fontSize:13, color:T.inkl }}>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Offer downgrade first */}
+                      <div style={{ background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:6, padding:"14px 16px", marginBottom:16 }}>
+                        <div style={{ fontSize:13, fontWeight:600, color:T.green, marginBottom:4 }}>💡 Consider downgrading instead</div>
+                        <div style={{ fontSize:12, color:T.inkm, marginBottom:10 }}>Switch to our Starter plan at $59/mo and keep your contacts and data.</div>
+                        <button onClick={()=>{ setShowCancelFlow(false); setAppView("pricing"); }} style={{ fontSize:12, fontWeight:600, padding:"6px 14px", background:T.green, border:"none", borderRadius:4, color:"#fff", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>View Starter plan →</button>
+                      </div>
+                      <div style={{ display:"flex", gap:10 }}>
+                        <button onClick={()=>setShowCancelFlow(false)} style={{ flex:1, padding:"10px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:5, color:T.inkl, fontWeight:500, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Keep my account</button>
+                        <button onClick={()=>setCancelStep(2)} style={{ flex:1, padding:"10px", background:T.redl, border:`1px solid ${T.redb}`, borderRadius:5, color:T.red, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Continue to cancel →</button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* STEP 2 — Reason */}
+                  {cancelStep===2 && !cancelComplete && (
+                    <>
+                      <div style={{ fontSize:22, fontFamily:"'Instrument Serif',serif", color:T.ink, marginBottom:6 }}>Why are you leaving?</div>
+                      <div style={{ fontSize:13, color:T.inkm, marginBottom:20 }}>Your feedback helps us improve. Please select the main reason.</div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:24 }}>
+                        {[
+                          "Too expensive",
+                          "Not enough contacts in my industry",
+                          "Missing features I need",
+                          "Switching to a competitor",
+                          "No longer need the service",
+                          "Technical issues",
+                          "Other",
+                        ].map(reason=>(
+                          <button key={reason} onClick={()=>setCancelReason(reason)} style={{ padding:"10px 14px", textAlign:"left", background:cancelReason===reason?T.redl:T.paper, border:`1px solid ${cancelReason===reason?T.redb:T.border}`, borderRadius:5, fontSize:13, color:cancelReason===reason?T.red:T.inkl, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontWeight:cancelReason===reason?600:400, transition:"all .15s" }}>{reason}</button>
+                        ))}
+                      </div>
+                      <div style={{ display:"flex", gap:10 }}>
+                        <button onClick={()=>setCancelStep(1)} style={{ flex:1, padding:"10px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:5, color:T.inkl, fontWeight:500, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>← Back</button>
+                        <button onClick={()=>{ if(!cancelReason){ setCancelError("Please select a reason."); return; } setCancelError(""); setCancelStep(3); }} style={{ flex:1, padding:"10px", background:T.red, border:"none", borderRadius:5, color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Continue →</button>
+                      </div>
+                      {cancelError && <div style={{ fontSize:12, color:T.red, marginTop:8 }}>{cancelError}</div>}
+                    </>
+                  )}
+
+                  {/* STEP 3 — Pause offer */}
+                  {cancelStep===3 && !cancelComplete && (
+                    <>
+                      <div style={{ fontSize:22, fontFamily:"'Instrument Serif',serif", color:T.ink, marginBottom:6 }}>Would a pause help?</div>
+                      <div style={{ fontSize:13, color:T.inkm, marginBottom:20, lineHeight:1.7 }}>Instead of cancelling, you can pause your account for up to 60 days. Your data stays safe and you can reactivate anytime.</div>
+                      <div style={{ background:T.amberl, border:`1px solid ${T.amberb}`, borderRadius:6, padding:"16px", marginBottom:20 }}>
+                        <div style={{ fontSize:13, fontWeight:600, color:T.amber, marginBottom:4 }}>⏸ Pause your account</div>
+                        <div style={{ fontSize:12, color:T.inkm, marginBottom:10 }}>No charges during pause. Resume anytime. All your data preserved.</div>
+                        <button onClick={()=>{ alert("Account pause coming soon — contact support@zelvarix.ai to pause manually."); setShowCancelFlow(false); }} style={{ fontSize:12, fontWeight:600, padding:"6px 14px", background:T.amber, border:"none", borderRadius:4, color:"#fff", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Pause for 60 days →</button>
+                      </div>
+                      <div style={{ display:"flex", gap:10 }}>
+                        <button onClick={()=>setCancelStep(2)} style={{ flex:1, padding:"10px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:5, color:T.inkl, fontWeight:500, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>← Back</button>
+                        <button onClick={()=>setCancelStep(4)} style={{ flex:1, padding:"10px", background:T.redl, border:`1px solid ${T.redb}`, borderRadius:5, color:T.red, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>No thanks, cancel →</button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* STEP 4 — Hand off to Stripe Customer Portal for the real cancellation */}
+                  {cancelStep===4 && (
+                    <>
+                      <div style={{ fontSize:22, fontFamily:"'Instrument Serif',serif", color:T.ink, marginBottom:6 }}>Finish cancelling in Stripe</div>
+                      <div style={{ fontSize:13, color:T.inkm, marginBottom:16, lineHeight:1.7 }}>Cancellation is completed through our secure billing portal. Sign in with <strong>{currentUser?.email}</strong>, then choose <strong>Cancel subscription</strong>. Your plan stays active until the end of the current billing period.</div>
+                      <div style={{ background:T.paper, border:`1px solid ${T.border}`, borderRadius:5, padding:"10px 14px", marginBottom:16, fontSize:12, color:T.inkm }}>
+                        You'll receive an email confirmation from Stripe once the cancellation is complete. Your data is preserved for 30 days.
+                      </div>
+                      <div style={{ display:"flex", gap:10 }}>
+                        <button onClick={()=>setCancelStep(3)} style={{ flex:1, padding:"10px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:5, color:T.inkl, fontWeight:500, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>← Back</button>
+                        <button onClick={()=>{ window.open(STRIPE_PORTAL_URL, "_blank", "noopener"); setShowCancelFlow(false); setCancelStep(1); setCancelReason(""); }} style={{ flex:1, padding:"10px", background:T.red, border:"none", borderRadius:5, color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Continue to Stripe to cancel →</button>
+                      </div>
+                    </>
+                  )}
+
+                </div>
+              </div>
+            )}
+
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:28 }}>
+              <SectionHeading label="Billing" sub="Plan, seats, and usage" />
+              <button onClick={()=>setAppView("pricing")} style={{ padding:"8px 16px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:4, color:T.green, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>↑ Upgrade plan</button>
+            </div>
+            {/* Plan */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
+              <div style={{ background:"#fff", border:`2px solid ${T.greenb}`, borderRadius:5, padding:"18px 22px" }}>
+                <div style={{ fontSize:10, fontWeight:600, color:T.green, textTransform:"uppercase", letterSpacing:1.2, marginBottom:8 }}>Current plan</div>
+                <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:26, color:T.ink, marginBottom:4 }}>{activeBilling.plan}</div>
+                <div style={{ fontFamily:"'DM Mono',monospace", fontSize:28, color:T.green, marginBottom:4 }}>${activeBilling.nextBill.amount}<span style={{ fontSize:14, color:T.inkm, fontFamily:"'DM Sans',sans-serif" }}>/mo</span></div>
+                <div style={{ fontSize:12, color:T.inkm }}>Next billing: {activeBilling.nextBill.date}</div>
+                {trialDaysLeft !== null && trialDaysLeft >= 0 && (
+                  <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${T.border}`, fontSize:12, fontWeight:600, color: trialDaysLeft <= 2 ? T.red : T.amber }}>
+                    {trialDaysLeft === 0 ? "Trial ends today" : `${trialDaysLeft} day${trialDaysLeft===1?"":"s"} left in your free trial`}
+                  </div>
+                )}
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                {/* Seats */}
+                <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, padding:"14px 18px", flex:1 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+                    <div style={{ fontSize:13, fontWeight:500, color:T.ink }}>Seats</div>
+                    <div style={{ fontSize:12, fontFamily:"'DM Mono',monospace", color:T.inkm }}>{activeBilling.seats.used}/{activeBilling.seats.total}</div>
+                  </div>
+                  <div style={{ height:4, background:T.paperd, borderRadius:2, overflow:"hidden", marginBottom:8 }}>
+                    <div style={{ height:"100%", width:`${Math.round(activeBilling.seats.used/activeBilling.seats.total*100)}%`, background:T.green, borderRadius:2 }} />
+                  </div>
+                  <div style={{ fontSize:11, color:T.inkmut }}>${activeBilling.seats.flatPrice}/mo flat — not billed per seat</div>
+                </div>
+                {/* Credits */}
+                <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, padding:"14px 18px", flex:1 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+                    <div style={{ fontSize:13, fontWeight:500, color:T.ink }}>Credits (contact reveals)</div>
+                    <div style={{ fontSize:12, fontFamily:"'DM Mono',monospace", color:T.inkm }}>{activeBilling.credits.used}/{activeBilling.credits.total}</div>
+                  </div>
+                  <div style={{ height:4, background:T.paperd, borderRadius:2, overflow:"hidden", marginBottom:8 }}>
+                    <div style={{ height:"100%", width:`${Math.round(activeBilling.credits.used/activeBilling.credits.total*100)}%`, background:activeBilling.credits.used/activeBilling.credits.total>.8?T.amber:T.green, borderRadius:2 }} />
+                  </div>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div style={{ fontSize:11, color:T.inkmut }}>Resets {activeBilling.credits.resetDate}</div>
+                    {revealsUsed >= revealsTotal && (
+                      <button onClick={()=>setShowTopUpModal(true)} style={{ fontSize:11, fontWeight:600, padding:"3px 10px", background:T.green, border:"none", borderRadius:3, color:"#fff", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>+ Top up</button>
+                    )}
+                  </div>
+                </div>
+                {/* Searches */}
+                <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, padding:"14px 18px", flex:1 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+                    <div style={{ fontSize:13, fontWeight:500, color:T.ink }}>Searches</div>
+                    <div style={{ fontSize:12, fontFamily:"'DM Mono',monospace", color:T.inkm }}>{searchesUsed}/{searchesTotal}</div>
+                  </div>
+                  <div style={{ height:4, background:T.paperd, borderRadius:2, overflow:"hidden", marginBottom:8 }}>
+                    <div style={{ height:"100%", width:`${Math.min(100, Math.round(searchesUsed/searchesTotal*100))}%`, background: searchesUsed/searchesTotal > 0.8 ? T.red : T.green, borderRadius:2 }} />
+                  </div>
+                  <div style={{ fontSize:11, color:T.inkmut }}>{resultsPerSearch} results per search</div>
+                </div>
+              </div>
+            </div>
+            {/* History */}
+            <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, overflow:"hidden" }}>
+              <div style={{ padding:"12px 18px", borderBottom:`1px solid ${T.border}`, fontSize:13, fontWeight:500, color:T.ink }}>Billing history</div>
+              {activeBilling.history.length === 0 && (
+                <div style={{ padding:"18px", fontSize:13, color:T.inkm }}>No billing history yet. Invoices will appear here after your first payment.</div>
+              )}
+              {activeBilling.history.map((h,i)=>(
+                <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 18px", borderBottom:i<activeBilling.history.length-1?`1px solid ${T.border}`:"none" }}>
+                  <div style={{ fontSize:13, color:T.inkl }}>{h.date}</div>
+                  <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+                    <span style={{ fontSize:10, fontWeight:600, color:T.green, background:T.greenl, border:`1px solid ${T.greenb}`, padding:"2px 7px", borderRadius:3, textTransform:"uppercase", letterSpacing:.5 }}>{h.status}</span>
+                    <div style={{ fontSize:13, fontWeight:600, fontFamily:"'DM Mono',monospace", color:T.ink }}>${h.amount}</div>
+                    <button style={{ fontSize:12, color:T.green, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>↓ PDF</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Cancel subscription — Admin only */}
+            {perms.canManageBilling ? (
+              <div style={{ marginTop:24, padding:"16px 20px", background:T.redl, border:`1px solid ${T.redb}`, borderRadius:6, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:600, color:T.red, marginBottom:2 }}>Cancel subscription</div>
+                  <div style={{ fontSize:12, color:T.inkm }}>Only the account Admin can cancel. Your data is preserved for 30 days after cancellation.</div>
+                </div>
+                <div style={{ display:"flex", gap:10, flexShrink:0 }}>
+                  <button onClick={()=>window.open(STRIPE_PORTAL_URL, "_blank", "noopener")} style={{ padding:"8px 16px", background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, color:T.ink, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Manage billing</button>
+                  <button onClick={()=>{ setShowCancelFlow(true); setCancelStep(1); setCancelReason(""); setCancelError(""); }} style={{ padding:"8px 16px", background:"#fff", border:`1px solid ${T.redb}`, borderRadius:5, color:T.red, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Cancel plan</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ marginTop:24, padding:"14px 18px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:6 }}>
+                <div style={{ fontSize:13, color:T.inkm }}>🔒 Only the account Admin can cancel or modify the subscription. Contact your Admin to make changes.</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── SETTINGS VIEW ─────────────────────────────────────────────────── */}
+        {view==="settings" && (
+          <div style={{ flex:1, padding:"28px 32px", overflowY:"auto", paddingBottom:60 }}>
+            <SectionHeading label="Settings" sub="Manage your account preferences and integrations" />
+
+            {/* Booking Link */}
+            <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:6, padding:"22px 24px", marginBottom:20 }}>
+              <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:20, color:T.ink, marginBottom:4 }}>Meeting booking link</div>
+              <div style={{ fontSize:13, color:T.inkm, marginBottom:16, lineHeight:1.7 }}>Your Calendly or Cal.com booking link. When set, it's automatically appended to every AI-drafted outreach email so prospects can book a call directly.</div>
+              <div style={{ display:"flex", gap:10 }}>
+                <input className="input-base" value={bookingLink} onChange={e=>setBookingLink(e.target.value)} placeholder="https://calendly.com/your-name/30min" style={{ flex:1 }} />
+                <button onClick={()=>{ localStorage.setItem('zelvarix_booking_link', bookingLink); alert('Booking link saved!'); }} style={{ padding:"9px 20px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>Save</button>
+              </div>
+              {bookingLink && (
+                <div style={{ marginTop:10, fontSize:12, color:T.green }}>✓ Booking link active — will appear in AI-drafted emails</div>
+              )}
+            </div>
+
+            {/* Profile info */}
+            <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:6, padding:"22px 24px", marginBottom:20 }}>
+              <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:20, color:T.ink, marginBottom:16 }}>Account</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+                <div>
+                  <div style={{ fontSize:12, fontWeight:500, color:T.inkl, marginBottom:4 }}>Email</div>
+                  <div style={{ fontSize:13, color:T.inkm, padding:"9px 12px", background:T.paper, borderRadius:4, border:`1px solid ${T.border}` }}>{currentUser?.email || "—"}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize:12, fontWeight:500, color:T.inkl, marginBottom:4 }}>Name</div>
+                  <div style={{ fontSize:13, color:T.inkm, padding:"9px 12px", background:T.paper, borderRadius:4, border:`1px solid ${T.border}` }}>{displayName}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* AI email limits info */}
+            <div style={{ background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:6, padding:"18px 20px" }}>
+              <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:18, color:T.ink, marginBottom:8 }}>AI bulk email generation</div>
+              <div style={{ fontSize:13, color:T.inkl, lineHeight:1.8 }}>
+                Generate personalised outreach emails for multiple contacts at once using Claude AI. Available in the Discover tab — select contacts then click "✦ Generate emails".<br/>
+                <strong>Starter:</strong> Single contact AI only &nbsp;·&nbsp; <strong>Pro:</strong> Up to 10 contacts at once &nbsp;·&nbsp; <strong>Team:</strong> Unlimited
+              </div>
+              <button onClick={()=>setAppView("pricing")} style={{ marginTop:12, fontSize:12, fontWeight:600, padding:"7px 16px", background:T.green, border:"none", borderRadius:4, color:"#fff", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>View all plans →</button>
+            </div>
+          </div>
+        )}
+
+      </div>
+
+      {/* ── UPGRADE PROMPT MODAL ──────────────────────────────────────────── */}
+      {showUpgradePrompt && !isDemo && !isPaidCustomer && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(26,24,20,.5)", zIndex:400, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }} onClick={()=>setShowUpgradePrompt(false)}>
+          <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:32, width:"100%", maxWidth:440, boxShadow:`0 8px 40px ${T.shadowd}`, textAlign:"center" }} onClick={e=>e.stopPropagation()}>
+            <div style={{ fontSize:36, marginBottom:12 }}>🔒</div>
+            <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:24, color:T.ink, marginBottom:8 }}>Out of reveals</div>
+            <div style={{ fontSize:13, color:T.inkm, marginBottom:20, lineHeight:1.7 }}>
+              You've used all {revealsTotal} reveals for this month. Top up now or upgrade your plan.
+            </div>
+
+            {/* Top-up packs */}
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontSize:11, fontWeight:600, color:T.inkmut, textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>Buy a top-up pack</div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
+                {TOPUP_PACKS.map(pack => (
+                  <button key={pack.id} onClick={()=>applyTopUp(pack)} disabled={topUpLoading===pack.id} style={{ padding:"12px 8px", background:topUpLoading===pack.id?T.greenl:T.paper, border:`1.5px solid ${topUpLoading===pack.id?T.green:T.border}`, borderRadius:6, cursor:topUpLoading===pack.id?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all .15s" }}>
+                    <div style={{ fontFamily:"'DM Mono',monospace", fontSize:18, fontWeight:600, color:T.green, marginBottom:2 }}>{pack.priceStr}</div>
+                    <div style={{ fontSize:10, fontWeight:600, color:T.ink, marginBottom:4 }}>{pack.label}</div>
+                    <div style={{ fontSize:9, color:T.inkm, lineHeight:1.4 }}>+{pack.reveals} reveals<br/>+{pack.searches} searches</div>
+                    {topUpLoading===pack.id && <div style={{ fontSize:9, color:T.green, marginTop:4 }}>Processing…</div>}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize:10, color:T.inkmut, marginTop:8 }}>* Payment via Stripe. Credits added immediately.</div>
+            </div>
+
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
+              <div style={{ flex:1, height:1, background:T.border }} />
+              <span style={{ fontSize:11, color:T.inkmut }}>or</span>
+              <div style={{ flex:1, height:1, background:T.border }} />
+            </div>
+
+            <div style={{ background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:6, padding:"10px 14px", marginBottom:16 }}>
+              <div style={{ fontSize:12, color:T.green, fontWeight:600, marginBottom:2 }}>Reveals reset on your next billing date</div>
+              <div style={{ fontSize:11, color:T.inkm }}>Upgrade for more reveals every month</div>
+            </div>
+
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={()=>setShowUpgradePrompt(false)} style={{ flex:1, padding:"10px", background:T.paper, border:`1px solid ${T.border}`, borderRadius:5, color:T.inkl, fontWeight:500, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Close</button>
+              <button onClick={()=>{ setShowUpgradePrompt(false); setAppView("pricing"); }} style={{ flex:1, padding:"10px", background:T.green, border:"none", borderRadius:5, color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Upgrade plan →</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── BULK EMAIL MODAL ──────────────────────────────────────────────── */}
+      {showBulkEmail && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.5)", zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div style={{ background:"#fff", borderRadius:8, width:"100%", maxWidth:680, maxHeight:"85vh", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+            <div style={{ padding:"20px 24px", borderBottom:`1px solid ${T.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.ink }}>✦ AI bulk email generator</div>
+                <div style={{ fontSize:13, color:T.inkm, marginTop:2 }}>{bulkEmailContacts.length} contacts selected</div>
+              </div>
+              <button onClick={()=>{ setShowBulkEmail(false); setBulkEmailResults({}); }} style={{ fontSize:20, background:"none", border:"none", cursor:"pointer", color:T.inkm }}>✕</button>
+            </div>
+            <div style={{ overflowY:"auto", flex:1 }}>
+              {bulkEmailContacts.map(c => (
+                <div key={c.id} style={{ padding:"16px 24px", borderBottom:`1px solid ${T.border}` }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                    <div>
+                      <div style={{ fontSize:14, fontWeight:600, color:T.ink }}>{c.name}</div>
+                      <div style={{ fontSize:12, color:T.inkm }}>{c.title} · {c.company}</div>
+                    </div>
+                    {!bulkEmailResults[c.id] && !bulkEmailLoading && (
+                      <button onClick={async()=>{
+                        setBulkEmailLoading(true);
+                        try {
+                          const res = await fetch('/api/claude', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+                            model:"claude-sonnet-4-6", max_tokens:600,
+                            messages:[{ role:"user", content:`Write a short, personalized cold outreach email to ${c.name}, ${c.title} at ${c.company}. Industry: ${c.industry}. Keep it under 100 words, conversational, not salesy. End with a call to action to book a 15-minute call.${bookingLink ? ` Include this booking link: ${bookingLink}` : ""} Sign off as ${displayName} from Zelvarix.` }]
+                          })});
+                          const data = await res.json();
+                          const text = data.content?.[0]?.text || "Could not generate email.";
+                          setBulkEmailResults(p=>({...p, [c.id]: text}));
+                        } catch { setBulkEmailResults(p=>({...p, [c.id]: "Error generating email. Please try again."})); }
+                        setBulkEmailLoading(false);
+                      }} style={{ padding:"6px 14px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:4, color:T.green, fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>
+                        ✦ Generate
+                      </button>
+                    )}
+                  </div>
+                  {bulkEmailResults[c.id] && (
+                    <div>
+                      <div style={{ background:T.paper, border:`1px solid ${T.border}`, borderRadius:4, padding:"12px 14px", fontSize:13, color:T.inkl, lineHeight:1.7, whiteSpace:"pre-wrap", marginBottom:8 }}>{bulkEmailResults[c.id]}</div>
+                      <div style={{ display:"flex", gap:8 }}>
+                        <button onClick={()=>{ navigator.clipboard.writeText(bulkEmailResults[c.id]); }} style={{ padding:"5px 12px", background:"#fff", border:`1px solid ${T.border}`, borderRadius:3, fontSize:11, color:T.inkm, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>📋 Copy</button>
+                        <button onClick={()=>setBulkEmailResults(p=>{ const n={...p}; delete n[c.id]; return n; })} style={{ padding:"5px 12px", background:"#fff", border:`1px solid ${T.border}`, borderRadius:3, fontSize:11, color:T.inkm, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>↺ Regenerate</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div style={{ padding:"16px 24px", borderTop:`1px solid ${T.border}`, display:"flex", gap:10, justifyContent:"space-between", alignItems:"center" }}>
+              <div style={{ fontSize:12, color:T.inkmut }}>Emails are AI-generated — review before sending</div>
+              <button onClick={async()=>{
+                setBulkEmailLoading(true);
+                for (const c of bulkEmailContacts) {
+                  if (bulkEmailResults[c.id]) continue;
+                  try {
+                    const res = await fetch('/api/claude', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+                      model:"claude-sonnet-4-6", max_tokens:600,
+                      messages:[{ role:"user", content:`Write a short, personalized cold outreach email to ${c.name}, ${c.title} at ${c.company}. Industry: ${c.industry}. Keep it under 100 words, conversational, not salesy. End with a call to action to book a 15-minute call.${bookingLink ? ` Include this booking link: ${bookingLink}` : ""} Sign off as ${displayName} from Zelvarix.` }]
+                    })});
+                    const data = await res.json();
+                    const text = data.content?.[0]?.text || "Could not generate email.";
+                    setBulkEmailResults(p=>({...p, [c.id]: text}));
+                  } catch { setBulkEmailResults(p=>({...p, [c.id]: "Error generating email."})); }
+                }
+                setBulkEmailLoading(false);
+              }} style={{ padding:"10px 20px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:13, cursor:bulkEmailLoading?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", opacity:bulkEmailLoading?.6:1 }}>
+                {bulkEmailLoading ? "Generating…" : `✦ Generate all ${bulkEmailContacts.length} emails`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── TOP-UP MODAL ─────────────────────────────────────────────────── */}
+      {showTopUpModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(26,24,20,.5)", zIndex:400, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }} onClick={()=>setShowTopUpModal(false)}>
+          <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:32, width:"100%", maxWidth:440, boxShadow:`0 8px 40px ${T.shadowd}` }} onClick={e=>e.stopPropagation()}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20 }}>
+              <div>
+                <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.ink, marginBottom:4 }}>Buy a top-up pack</div>
+                <div style={{ fontSize:13, color:T.inkm }}>Credits added to your account immediately</div>
+              </div>
+              <button onClick={()=>setShowTopUpModal(false)} style={{ background:"none", border:"none", fontSize:20, color:T.inkm, cursor:"pointer" }}>×</button>
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:20 }}>
+              {TOPUP_PACKS.map(pack => (
+                <div key={pack.id} style={{ border:`1.5px solid ${T.border}`, borderRadius:8, padding:"16px 12px", textAlign:"center" }}>
+                  <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:28, color:T.ink, marginBottom:2 }}>{pack.priceStr}</div>
+                  <div style={{ fontSize:12, fontWeight:600, color:T.inkl, marginBottom:8 }}>{pack.label}</div>
+                  <div style={{ fontSize:11, color:T.inkm, marginBottom:12, lineHeight:1.6 }}>
+                    +{pack.reveals} reveals<br/>+{pack.searches} searches
+                  </div>
+                  <div style={{ fontSize:10, color:T.inkmut, marginBottom:10 }}>
+                    ${(pack.price/pack.reveals).toFixed(2)}/reveal
+                  </div>
+                  <button onClick={()=>applyTopUp(pack)} disabled={topUpLoading===pack.id} style={{ width:"100%", padding:"8px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:12, cursor:topUpLoading===pack.id?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", opacity:topUpLoading===pack.id?.6:1 }}>
+                    {topUpLoading===pack.id ? "Processing…" : "Buy now"}
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ background:T.paper, border:`1px solid ${T.border}`, borderRadius:5, padding:"10px 14px", fontSize:11, color:T.inkm, lineHeight:1.6 }}>
+              <strong>Current balance:</strong> {revealsTotal - revealsUsed} reveals · {searchesTotal - searchesUsed} searches remaining this month.<br/>
+              Top-up credits are added on top of your existing monthly allowance and reset with your next billing cycle.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── SUPPORT BOT ──────────────────────────────────────────────────── */}
+      {/* Floating button */}
+      {!showSupportBot && (
+        <button onClick={()=>setShowSupportBot(true)} style={{ position:"fixed", bottom:52, right:24, width:52, height:52, borderRadius:"50%", background:T.green, border:"none", boxShadow:`0 4px 16px rgba(26,92,58,.35)`, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", zIndex:100, fontSize:22 }} title="Get help">
+          💬
+        </button>
+      )}
+
+      {/* Chat window */}
+      {showSupportBot && (
+        <div style={{ position:"fixed", bottom:52, right:24, width:360, height:480, background:"#fff", border:`1px solid ${T.border}`, borderRadius:12, boxShadow:`0 8px 40px ${T.shadowd}`, zIndex:100, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+          {/* Header */}
+          <div style={{ padding:"14px 18px", background:T.green, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ width:32, height:32, borderRadius:"50%", background:"rgba(255,255,255,.2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>✦</div>
+              <div>
+                <div style={{ fontSize:13, fontWeight:600, color:"#fff" }}>Zelvarix Support</div>
+                <div style={{ fontSize:10, color:"rgba(255,255,255,.7)" }}>Powered by Claude AI · Usually replies instantly</div>
+              </div>
+            </div>
+            <button onClick={()=>setShowSupportBot(false)} style={{ background:"none", border:"none", color:"rgba(255,255,255,.8)", cursor:"pointer", fontSize:18, lineHeight:1, padding:4 }}>×</button>
+          </div>
+
+          {/* Messages */}
+          <div style={{ flex:1, overflowY:"auto", padding:"16px 14px", display:"flex", flexDirection:"column", gap:10 }}>
+            {supportMessages.map(msg => (
+              <div key={msg.id} style={{ display:"flex", justifyContent:msg.role==="user"?"flex-end":"flex-start" }}>
+                <div style={{ maxWidth:"80%", padding:"9px 12px", borderRadius:msg.role==="user"?"12px 12px 2px 12px":"12px 12px 12px 2px", background:msg.role==="user"?T.green:T.paper, color:msg.role==="user"?"#fff":T.inkl, fontSize:13, lineHeight:1.6, whiteSpace:"pre-wrap" }}>
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+            {supportLoading && (
+              <div style={{ display:"flex", justifyContent:"flex-start" }}>
+                <div style={{ padding:"9px 14px", borderRadius:"12px 12px 12px 2px", background:T.paper, display:"flex", gap:4, alignItems:"center" }}>
+                  {[0,1,2].map(i => (
+                    <div key={i} style={{ width:6, height:6, borderRadius:"50%", background:T.inkmut, animation:"pulse 1s infinite", animationDelay:`${i*0.2}s` }} />
+                  ))}
+                </div>
+              </div>
+            )}
+            <div ref={supportEndRef} />
+          </div>
+
+          {/* Quick replies */}
+          {supportMessages.length === 1 && (
+            <div style={{ padding:"0 14px 10px", display:"flex", flexWrap:"wrap", gap:6 }}>
+              {["How do reveals work?","How do I set up my booking link?","How do I cancel?","What's included in each plan?"].map(q => (
+                <button key={q} onClick={()=>sendSupportMessageText(q)} style={{ fontSize:11, padding:"4px 10px", background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:20, color:T.green, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontWeight:500 }}>{q}</button>
+              ))}
+            </div>
+          )}
+
+          {/* Input */}
+          <div style={{ padding:"10px 14px", borderTop:`1px solid ${T.border}`, display:"flex", gap:8 }}>
+            <input
+              className="input-base"
+              value={supportInput}
+              onChange={e=>setSupportInput(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&sendSupportMessage()}
+              placeholder="Ask a question…"
+              style={{ flex:1, fontSize:13, padding:"8px 12px" }}
+            />
+            <button onClick={sendSupportMessage} disabled={supportLoading||!supportInput.trim()} style={{ padding:"8px 14px", background:supportLoading||!supportInput.trim()?T.paperd:T.green, border:"none", borderRadius:4, color:supportLoading||!supportInput.trim()?T.inkmut:"#fff", fontWeight:600, fontSize:13, cursor:supportLoading||!supportInput.trim()?"not-allowed":"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all .15s" }}>→</button>
+          </div>
+        </div>
+      )}
+
+      {/* Footer links in app */}
+      <div style={{ position:"fixed", bottom:0, left:0, right:0, padding:"6px 24px", background:"rgba(250,248,244,.95)", borderTop:`1px solid ${T.border}`, display:"flex", gap:16, zIndex:10, backdropFilter:"blur(4px)" }}>
+        {[["privacy","Privacy"],["terms","Terms"],["cookies","Cookies"],["security","Security"],["contact","Contact"],["about","About"]].map(([id,l])=>(
+          <button key={id} onClick={()=>setAppView(id)} style={{ fontSize:11, color:T.inkmut, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>{l}</button>
+        ))}
+        <span style={{ fontSize:11, color:T.inkmut, marginLeft:"auto" }}>© 2026 Zelvarix.ai</span>
+      </div>
+
+      {/* AI Panel */}
+      {aiContact && <AIPanel contact={aiContact} onClose={()=>setAiContact(null)} bookingLink={bookingLink} />}
+    </div>
+  );
 }
