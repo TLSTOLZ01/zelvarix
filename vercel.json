@@ -3,6 +3,7 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/compare/apollo-alternative", "destination": "/compare/apollo-alternative.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
