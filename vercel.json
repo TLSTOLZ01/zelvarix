@@ -5,6 +5,7 @@
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/compare/apollo-alternative", "destination": "/compare/apollo-alternative.html" },
     { "source": "/compare/zoominfo-alternative", "destination": "/compare/zoominfo-alternative.html" },
+    { "source": "/compare/prospecting-tools-without-per-seat-pricing", "destination": "/compare/prospecting-tools-without-per-seat-pricing.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
