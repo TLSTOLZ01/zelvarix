@@ -1,0 +1,12 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/compare/apollo-alternative", "destination": "/compare/apollo-alternative.html" },
+    { "source": "/compare/zoominfo-alternative", "destination": "/compare/zoominfo-alternative.html" },
+    { "source": "/compare/prospecting-tools-without-per-seat-pricing", "destination": "/compare/prospecting-tools-without-per-seat-pricing.html" },
+    { "source": "/guides/build-a-prospect-list", "destination": "/guides/build-a-prospect-list.html" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
