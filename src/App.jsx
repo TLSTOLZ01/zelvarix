@@ -507,6 +507,9 @@ export default function App() {
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [showTopUpModal, setShowTopUpModal]       = useState(false);
   const [showChangePlanModal, setShowChangePlanModal] = useState(false); // in-app plan switcher for active subscribers
+  const [adminStats, setAdminStats]     = useState(null);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminError, setAdminError]     = useState("");
   const [topUpLoading, setTopUpLoading]           = useState(null); // pack id being purchased
   const [isDemo, setIsDemo]                     = useState(false);
   const [isPaidCustomer, setIsPaidCustomer]     = useState(false);
@@ -1160,6 +1163,24 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
     window.history.replaceState({}, "", "/");
     setResetData({ password:"", confirm:"" });
     setAuthMode("login"); setAuthNotice("Password updated. Sign in with your new password."); setAppView("auth");
+  };
+
+  // ── Admin KPI dashboard: fetch aggregated business stats (admin-only, verified server-side) ──
+  const loadAdminStats = async () => {
+    setAdminLoading(true); setAdminError("");
+    try {
+      const { data: sessionData } = await sb.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) throw new Error("No active session");
+      const res = await fetch("/api/admin-stats", { headers: { Authorization: `Bearer ${token}` } });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load stats");
+      setAdminStats(json);
+    } catch (err) {
+      setAdminError(err.message);
+    } finally {
+      setAdminLoading(false);
+    }
   };
 
   async function handleLogin() {
@@ -2012,6 +2033,10 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
   // ══════════════════════════════════════════════════════════════════════════
   // MAIN APP — top-bar navigation + full-bleed content
   // ══════════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (view === "admin" && !adminStats && !adminLoading) loadAdminStats();
+  }, [view]);
+
   const navItems = [
     { id:"discover",  label:"Discover" },
     { id:"pipeline",  label:"Pipeline" },
@@ -2019,6 +2044,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
     ...(perms.canViewTeam     ? [{ id:"team",    label:"Team"    }] : []),
     ...(perms.canManageBilling && !isDemo ? [{ id:"billing", label:"Billing" }] : []),
     { id:"settings", label:"Settings" },
+    ...((currentUser?.email || "").toLowerCase()==="t_stolzenburg@hotmail.com" ? [{ id:"admin", label:"Admin" }] : []),
   ];
 
   const selectStyle = { padding:"7px 10px", background:"#fff", border:`1px solid ${T.border}`, borderRadius:4, color:T.inkl, fontSize:12, fontFamily:"'DM Sans',sans-serif", outline:"none", cursor:"pointer", width:"100%", appearance:"none" };
@@ -2849,6 +2875,60 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
             )}
           </div>
         )}
+        {/* ── ADMIN KPI DASHBOARD (admin-only) ── */}
+        {view==="admin" && (
+          <div style={{ flex:1, padding:"28px 32px", overflowY:"auto" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:24 }}>
+              <div>
+                <SectionHeading label="Admin" />
+                <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:26, color:T.ink }}>Business KPIs</div>
+              </div>
+              <button onClick={loadAdminStats} disabled={adminLoading} style={{ padding:"8px 16px", background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, color:T.ink, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>{adminLoading ? "Refreshing…" : "↻ Refresh"}</button>
+            </div>
+
+            {adminError && <div style={{ fontSize:13, color:T.red, background:T.redl, border:`1px solid ${T.redb}`, borderRadius:5, padding:"10px 14px", marginBottom:20 }}>{adminError}</div>}
+
+            {adminLoading && !adminStats && <div style={{ color:T.inkm, fontSize:14 }}><Spinner /> Loading stats…</div>}
+
+            {adminStats && (
+              <>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))", gap:14, marginBottom:32 }}>
+                  <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:"18px 20px" }}>
+                    <div style={{ fontSize:12, color:T.inkm, marginBottom:6 }}>Active subscriptions</div>
+                    <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:34, color:T.ink }}>{adminStats.subscriptions.active}</div>
+                    <div style={{ fontSize:12, color:T.inkm, marginTop:4 }}>Starter {adminStats.subscriptions.byPlan.starter} · Pro {adminStats.subscriptions.byPlan.pro} · Team {adminStats.subscriptions.byPlan.team}</div>
+                  </div>
+                  <div style={{ background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:8, padding:"18px 20px" }}>
+                    <div style={{ fontSize:12, color:T.green, marginBottom:6 }}>MRR</div>
+                    <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:34, color:T.green }}>${adminStats.subscriptions.mrr.toLocaleString()}</div>
+                    <div style={{ fontSize:12, color:T.green, marginTop:4 }}>from active subscriptions</div>
+                  </div>
+                  <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:"18px 20px" }}>
+                    <div style={{ fontSize:12, color:T.inkm, marginBottom:6 }}>Trialing now</div>
+                    <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:34, color:T.ink }}>{adminStats.subscriptions.trialing}</div>
+                    <div style={{ fontSize:12, color:T.inkm, marginTop:4 }}>{adminStats.trials.startedThisWeek} started this week · {adminStats.trials.startedThisMonth} this month</div>
+                  </div>
+                  <div style={{ background:T.redl, border:`1px solid ${T.redb}`, borderRadius:8, padding:"18px 20px" }}>
+                    <div style={{ fontSize:12, color:T.red, marginBottom:6 }}>Cancellations</div>
+                    <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:34, color:T.red }}>{adminStats.cancellations.thisMonth}</div>
+                    <div style={{ fontSize:12, color:T.red, marginTop:4 }}>this month · {adminStats.cancellations.thisWeek} this week · {adminStats.cancellations.churnRateThisMonthPct}% churn</div>
+                  </div>
+                  <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:"18px 20px" }}>
+                    <div style={{ fontSize:12, color:T.inkm, marginBottom:6 }}>Top-up revenue</div>
+                    <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:34, color:T.ink }}>${adminStats.topups.revenueLast30d.toLocaleString()}</div>
+                    <div style={{ fontSize:12, color:T.inkm, marginTop:4 }}>{adminStats.topups.countLast30d} purchases, last 30 days</div>
+                  </div>
+                </div>
+
+                <div style={{ fontSize:12, color:T.inkmut, marginBottom:8 }}>Last updated {new Date(adminStats.generatedAt).toLocaleString()}</div>
+                <div style={{ background:T.paper, border:`1px solid ${T.border}`, borderRadius:6, padding:"14px 18px", fontSize:13, color:T.inkm, maxWidth:600 }}>
+                  Cancellation counts come from Stripe's event log (last 30 days) since Supabase only stores current team state, not history. Site traffic and per-page performance live in <a href="https://search.google.com/search-console" target="_blank" rel="noopener" style={{ color:T.green, fontWeight:600 }}>Google Search Console</a>, not duplicated here.
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
 
         {/* ── SETTINGS VIEW ─────────────────────────────────────────────────── */}
         {view==="settings" && (
