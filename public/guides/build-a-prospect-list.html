@@ -1,12 +1,227 @@
-{
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/compare/apollo-alternative", "destination": "/compare/apollo-alternative.html" },
-    { "source": "/compare/zoominfo-alternative", "destination": "/compare/zoominfo-alternative.html" },
-    { "source": "/compare/prospecting-tools-without-per-seat-pricing", "destination": "/compare/prospecting-tools-without-per-seat-pricing.html" },
-    { "source": "/guides/build-a-prospect-list", "destination": "/guides/build-a-prospect-list.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How to Build a Prospect List for a Small Sales Team (2026 Guide)</title>
+  <meta name="description" content="A step-by-step guide to building a real prospect list when you don't have an SDR: define your ICP, find the right contacts, and prioritize who to reach out to first.">
+  <link rel="canonical" href="https://www.zelvarix.ai/guides/build-a-prospect-list">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="How to Build a Prospect List for a Small Sales Team">
+  <meta property="og:description" content="No SDR, no sales-ops team, no problem. A practical, step-by-step guide to building a real prospect list for a small sales team.">
+  <meta property="og:url" content="https://www.zelvarix.ai/guides/build-a-prospect-list">
+  <meta property="og:site_name" content="Zelvarix.ai">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" href="/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "How to Build a Prospect List for a Small Sales Team",
+    "step": [
+      { "@type": "HowToStep", "name": "Define your ICP in one sentence", "text": "Write down who you sell to as a specific sentence: role, company type, size, and one qualifying detail. Vague ICPs produce vague lists." },
+      { "@type": "HowToStep", "name": "Pick 2-3 firmographic filters, not ten", "text": "Choose industry, company size, and geography (or the two that matter most). Every extra filter narrows your list and increases the chance you filter out a good-fit prospect." },
+      { "@type": "HowToStep", "name": "Search in plain language before you touch a filter tree", "text": "State your ICP as a sentence and search on it directly rather than starting from an empty filter builder." },
+      { "@type": "HowToStep", "name": "Reveal in small batches and check quality before spending more", "text": "Pull 10-20 contacts, check title and company accuracy, then continue rather than revealing your whole month's allowance at once." },
+      { "@type": "HowToStep", "name": "Score and prioritize before you write anything", "text": "Rank contacts by seniority, verified contact info, and fit to your ICP so your best-fit prospects get reached first." },
+      { "@type": "HowToStep", "name": "Research each contact before the first message", "text": "Spend two minutes per contact on what their role actually involves and what they're likely measured on, so your first message says something specific." },
+      { "@type": "HowToStep", "name": "Keep the list somewhere it won't die in a spreadsheet", "text": "Save contacts into a list you'll actually revisit, with status tracked, so prospecting survives past this week." }
+    ]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How many prospects should be on a first list?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Start smaller than feels ambitious: 20 to 30 well-matched contacts you can research and reach out to properly beats 500 you'll never get through. A tight, well-qualified list that gets worked completely outperforms a large list that gets ignored after the first ten." }
+      },
+      {
+        "@type": "Question",
+        "name": "What's the difference between a lead list and a prospect list?",
+        "acceptedAnswer": { "@type": "Answer", "text": "A lead list is typically names and company data with no qualification behind it, often bought in bulk. A prospect list is qualified against your ICP and prioritized by fit, so every entry is someone you have an actual reason to contact." }
+      },
+      {
+        "@type": "Question",
+        "name": "How often should a small team refresh its prospect list?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Weekly in small batches works better than a large quarterly pull. Contacts change roles, companies change size, and a list built once a quarter is stale by the time half of it gets worked." }
+      }
+    ]
+  }
+  </script>
+  <style>
+    :root{
+      --cream:#faf8f4; --paper:#f3f0ea; --paperd:#e8e3d9; --border:#dcd6cb;
+      --ink:#1a1814; --inkl:#3d3a35; --inkm:#7a7570; --inkmut:#b0aaa2;
+      --green:#1a5c3a; --greenl:#e8f3ec; --greenm:#2d7a52; --greenb:#a8d4b8;
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+    body{margin:0;background:var(--cream);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;font-size:17px;line-height:1.65;-webkit-font-smoothing:antialiased}
+    a{color:var(--green)}
+    a:focus-visible,button:focus-visible{outline:2px solid var(--greenm);outline-offset:3px}
+
+    header.site{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;max-width:1080px;margin:0 auto}
+    .logo{font-family:'Instrument Serif',serif;font-size:24px;color:var(--ink);text-decoration:none;letter-spacing:-.2px}
+    .logo span{color:var(--green)}
+    .btn{display:inline-block;background:var(--green);color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:11px 20px;border-radius:5px;border:1px solid var(--green)}
+    .btn:hover{background:var(--greenm);border-color:var(--greenm)}
+
+    main{max-width:1080px;margin:0 auto;padding:0 24px 80px}
+    .hero{padding:56px 0 40px;max-width:740px}
+    h1{font-family:'Instrument Serif',serif;font-weight:400;font-size:clamp(36px,5vw,54px);line-height:1.08;letter-spacing:-.6px;margin:0 0 18px}
+    .lede{font-size:20px;color:var(--inkl);margin:0 0 26px;line-height:1.55}
+    .meta{font-size:14px;color:var(--inkm);margin-top:26px}
+
+    .toc{background:var(--paper);border:1px solid var(--border);border-radius:8px;padding:22px 26px;max-width:640px;margin:8px 0 48px}
+    .toc div{font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--inkm);margin-bottom:12px}
+    .toc ol{margin:0;padding-left:20px}
+    .toc li{margin-bottom:6px}
+    .toc a{color:var(--inkl);text-decoration:none}
+    .toc a:hover{color:var(--green)}
+
+    article{max-width:740px}
+    h2{font-family:'Instrument Serif',serif;font-weight:400;font-size:32px;line-height:1.15;letter-spacing:-.4px;margin:54px 0 6px;scroll-margin-top:24px}
+    .stepnum{font-family:'DM Mono',monospace;font-size:13px;color:var(--green);font-weight:600;letter-spacing:.4px;text-transform:uppercase;margin-bottom:4px}
+    h3{font-size:19px;font-weight:600;margin:26px 0 8px}
+    p{margin:0 0 18px}
+    ul,ol.plain{padding-left:22px;margin:0 0 18px}
+    li{margin-bottom:6px}
+
+    .example{background:var(--paper);border-left:3px solid var(--greenb);border-radius:0 6px 6px 0;padding:16px 20px;margin:16px 0 20px;font-size:15px;color:var(--inkl)}
+    .example strong{color:var(--ink)}
+
+    .pullquote{border-left:3px solid var(--green);padding:6px 0 6px 20px;margin:22px 0 30px;font-size:19px;color:var(--inkl)}
+    .pullquote em{font-family:'Instrument Serif',serif;font-style:italic;font-size:22px;color:var(--ink)}
+
+    .plug{background:var(--greenl);border:1px solid var(--greenb);border-radius:6px;padding:16px 20px;margin:20px 0 24px;font-size:15px}
+    .plug a{font-weight:600}
+
+    .faq details{border-bottom:1px solid var(--border);padding:14px 0}
+    .faq summary{cursor:pointer;font-weight:600;font-size:17px;list-style:none;display:flex;justify-content:space-between;gap:16px}
+    .faq summary::-webkit-details-marker{display:none}
+    .faq summary::after{content:"+";color:var(--inkm);font-weight:400;font-size:22px;line-height:1}
+    .faq details[open] summary::after{content:"–"}
+    .faq details p{margin:10px 0 4px;color:var(--inkl)}
+
+    .cta{background:#fff;border:1px solid var(--border);border-radius:8px;padding:34px 28px;margin-top:56px;max-width:820px}
+    .cta h2{margin:0 0 8px;font-size:32px}
+    .cta p{color:var(--inkl);margin-bottom:20px}
+    .cta .small{font-size:13px;color:var(--inkm);margin:12px 0 0}
+
+    footer.site{border-top:1px solid var(--border);padding:24px;font-size:13px;color:var(--inkm);max-width:1080px;margin:0 auto;display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:space-between}
+    footer.site a{color:var(--inkm);text-decoration:none}
+    footer.site a:hover{color:var(--green)}
+
+    @media (max-width:640px){
+      body{font-size:16px}
+      header.site{padding:14px 18px}
+      main{padding:0 18px 60px}
+      .hero{padding:36px 0 28px}
+      .lede{font-size:18px}
+      h2{font-size:26px;margin-top:44px}
+      .toc{padding:18px 20px}
+      .cta{padding:26px 20px}
+    }
+  </style>
+</head>
+<body>
+  <header class="site">
+    <a class="logo" href="/">Zelvarix<span>.ai</span></a>
+    <a class="btn" href="/?ref=guide-prospect-list">Start free trial</a>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>How to build a prospect list when you don't have an SDR</h1>
+      <p class="lede">Most guides to prospect lists assume you have a sales-ops team, a data subscription, and someone whose full-time job is building lists. This one is written for the more common situation: you're the sales leader, or one of two to ten reps, and list-building happens in the gaps between everything else.</p>
+      <p class="meta">Updated September 2026.</p>
+    </section>
+
+    <nav class="toc" aria-label="Table of contents">
+      <div>In this guide</div>
+      <ol>
+        <li><a href="#step1">Define your ICP in one sentence</a></li>
+        <li><a href="#step2">Pick 2–3 filters, not ten</a></li>
+        <li><a href="#step3">Search in plain language first</a></li>
+        <li><a href="#step4">Reveal in small batches</a></li>
+        <li><a href="#step5">Score and prioritize before you write anything</a></li>
+        <li><a href="#step6">Research each contact for two minutes</a></li>
+        <li><a href="#step7">Keep the list somewhere it won't die</a></li>
+      </ol>
+    </nav>
+
+    <article>
+      <p class="pullquote"><em>The core idea:</em> a list of 25 well-matched, well-researched contacts that actually gets worked will outperform a list of 500 that gets abandoned after the first page. Build for follow-through, not volume.</p>
+
+      <h2 id="step1"><span class="stepnum">Step 1</span><br>Define your ICP in one sentence</h2>
+      <p>Before opening any tool, write one sentence describing exactly who you sell to. Not "small businesses" or "sales leaders" — specific enough that you could hand the sentence to someone else and they'd build the same list you would.</p>
+      <div class="example"><strong>Too vague:</strong> "Sales leaders at small companies."<br><strong>Specific enough:</strong> "VP of Sales or Head of Sales at B2B SaaS companies, 20–200 employees, in the US, who don't already have a dedicated SDR team."</div>
+      <p>The qualifying detail at the end matters most. It's the difference between a list that's technically correct and a list where every contact actually needs what you sell.</p>
+
+      <h2 id="step2"><span class="stepnum">Step 2</span><br>Pick 2–3 firmographic filters, not ten</h2>
+      <p>It's tempting to filter on everything you can think of: industry, size, location, funding stage, tech stack, growth rate. Each additional filter narrows the list — and in a small dataset, over-filtering quietly removes good-fit prospects along with bad ones.</p>
+      <p>Pick the two or three filters that actually predict fit. For most small teams, that's industry, company size, and geography. Everything else is better handled in Step 6, when you're researching a specific person, not filtering a whole list.</p>
+
+      <h2 id="step3"><span class="stepnum">Step 3</span><br>Search in plain language before you touch a filter tree</h2>
+      <p>If your tool supports it, state your ICP as a sentence and search on that directly, rather than starting from an empty filter builder and reconstructing the same sentence one dropdown at a time. It's faster, and it keeps you anchored to the actual person you're looking for instead of the fields a database happens to have.</p>
+      <div class="plug">This is the first thing <a href="/?ref=guide-prospect-list">Zelvarix</a> does differently: type "VP of Sales at B2B SaaS companies, 20–200 employees, no dedicated SDR team" and search directly on it, refining with a couple of filters only if you need to narrow further.</div>
+
+      <h2 id="step4"><span class="stepnum">Step 4</span><br>Reveal in small batches and check quality before spending more</h2>
+      <p>Whatever tool you're using, resist revealing your entire monthly allowance in one search. Pull 10 to 20 contacts first, and actually check them: are the titles current, is the company right, does the seniority match what you asked for. If the batch looks off, adjust your search before you spend the rest of your budget on the same mismatch.</p>
+
+      <h2 id="step5"><span class="stepnum">Step 5</span><br>Score and prioritize before you write anything</h2>
+      <p>Not every contact on a qualified list deserves the same effort. Before drafting a single message, rank what you have:</p>
+      <ul>
+        <li><strong>Seniority</strong> — someone who can actually decide or strongly influence the purchase, not just someone with an adjacent title</li>
+        <li><strong>Verified contact info</strong> — a confirmed email or phone beats a guessed one; don't spend your best message on a contact you might not reach</li>
+        <li><strong>Fit to your ICP sentence</strong> — how closely this specific person and company match what you wrote in Step 1, not just whether they cleared the filters</li>
+      </ul>
+      <p>Work the top of that ranking first. A short list worked in the right order beats a long list worked in the order it happened to load.</p>
+
+      <h2 id="step6"><span class="stepnum">Step 6</span><br>Research each contact before the first message</h2>
+      <p>This is the step most small teams skip, and it's the one that determines whether the list produces replies. Before reaching out, spend two minutes on each contact: what does their role actually involve day to day, what are they likely measured on, and what's one thing about their company right now that gives you a real reason to write to them.</p>
+      <p>A message that references something specific about the person gets answered. A message that could have been sent to anyone with the same job title gets ignored, no matter how good the list underneath it was.</p>
+      <div class="plug">This is the other thing <a href="/?ref=guide-prospect-list">Zelvarix</a> does differently: every contact you reveal comes with an AI-generated intelligence panel doing this research automatically, so the two minutes per contact becomes a few seconds of reading instead of a manual LinkedIn dig.</div>
+
+      <h2 id="step7"><span class="stepnum">Step 7</span><br>Keep the list somewhere it won't die in a spreadsheet</h2>
+      <p>The most common failure mode isn't a bad list — it's a good list that gets built once, worked halfway through, and then buried in a spreadsheet tab nobody reopens. Whatever you use to hold the list, make sure it tracks status per contact (not contacted, contacted, replied, no response) so prospecting has a state you can pick back up instead of starting over from a blank search every time momentum stalls.</p>
+    </article>
+
+    <article class="faq" aria-labelledby="faq-h">
+      <h2 id="faq-h">Common questions</h2>
+      <details>
+        <summary>How many prospects should be on a first list?</summary>
+        <p>Start smaller than feels ambitious: 20 to 30 well-matched contacts you can research and reach out to properly beats 500 you'll never get through. A tight, well-qualified list that gets worked completely outperforms a large list that gets ignored after the first ten.</p>
+      </details>
+      <details>
+        <summary>What's the difference between a lead list and a prospect list?</summary>
+        <p>A lead list is typically names and company data with no qualification behind it, often bought in bulk. A prospect list is qualified against your ICP and prioritized by fit, so every entry is someone you have an actual reason to contact.</p>
+      </details>
+      <details>
+        <summary>How often should a small team refresh its prospect list?</summary>
+        <p>Weekly in small batches works better than a large quarterly pull. Contacts change roles, companies change size, and a list built once a quarter is stale by the time half of it gets worked.</p>
+      </details>
+    </article>
+
+    <section class="cta" aria-labelledby="cta-h">
+      <h2 id="cta-h">Build your first list in the next ten minutes</h2>
+      <p>Search in plain English, reveal a small batch, and see the intelligence panel Zelvarix generates for each contact — free for your whole team for 7 days.</p>
+      <a class="btn" href="/?ref=guide-prospect-list">Give your team access, free for 7 days</a>
+      <p class="small">No credit card. Cancel anytime from your billing page. Questions: support@zelvarix.ai</p>
+    </section>
+  </main>
+
+  <footer class="site">
+    <div>© 2026 Zelvarix.ai LLC.</div>
+    <div><a href="/">Home</a> &nbsp; <a href="/terms">Terms</a> &nbsp; <a href="/privacy">Privacy</a></div>
+  </footer>
+</body>
+</html>
