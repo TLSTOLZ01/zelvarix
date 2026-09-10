@@ -510,6 +510,10 @@ export default function App() {
   const [adminStats, setAdminStats]     = useState(null);
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminError, setAdminError]     = useState("");
+  useEffect(() => {
+    if (view === "admin" && !adminStats && !adminLoading) loadAdminStats();
+  }, [view, adminStats, adminLoading]);
+
   const [topUpLoading, setTopUpLoading]           = useState(null); // pack id being purchased
   const [isDemo, setIsDemo]                     = useState(false);
   const [isPaidCustomer, setIsPaidCustomer]     = useState(false);
@@ -2033,10 +2037,6 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
   // ══════════════════════════════════════════════════════════════════════════
   // MAIN APP — top-bar navigation + full-bleed content
   // ══════════════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    if (view === "admin" && !adminStats && !adminLoading) loadAdminStats();
-  }, [view]);
-
   const navItems = [
     { id:"discover",  label:"Discover" },
     { id:"pipeline",  label:"Pipeline" },
