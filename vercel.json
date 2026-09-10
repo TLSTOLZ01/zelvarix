@@ -7,6 +7,7 @@
     { "source": "/compare/zoominfo-alternative", "destination": "/compare/zoominfo-alternative.html" },
     { "source": "/compare/prospecting-tools-without-per-seat-pricing", "destination": "/compare/prospecting-tools-without-per-seat-pricing.html" },
     { "source": "/guides/build-a-prospect-list", "destination": "/guides/build-a-prospect-list.html" },
+    { "source": "/guides/first-cold-email-examples", "destination": "/guides/first-cold-email-examples.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
