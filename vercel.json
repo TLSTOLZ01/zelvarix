@@ -1,6 +1,10 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "redirects": [
+    { "source": "/card", "destination": "/?ref=card", "permanent": false },
+    { "source": "/deck", "destination": "/?ref=deck", "permanent": false }
+  ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/compare/apollo-alternative", "destination": "/compare/apollo-alternative.html" },
