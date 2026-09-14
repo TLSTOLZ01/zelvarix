@@ -496,6 +496,8 @@ export default function App() {
   const [cancelError, setCancelError]         = useState("");
   const [cancelComplete, setCancelComplete]   = useState(false);
   const [bookingLink, setBookingLink]         = useState("");
+  const [bookingLinkSaving, setBookingLinkSaving] = useState(false);
+  const [bookingLinkMsg, setBookingLinkMsg]         = useState(""); // transient save confirmation/error
   const [revealCache, setRevealCache]         = useState({}); // pdlId -> { email, phone }
   const [revealedIds, setRevealedIds]         = useState(new Set()); // contacts with revealed contact info
   const [exportedIds, setExportedIds]         = useState(new Set()); // contacts exported to CSV
@@ -979,9 +981,11 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
 
   // ── Load booking link from localStorage ─────────────────────────────────
   useEffect(() => {
-    const saved = localStorage.getItem('zelvarix_booking_link');
-    if (saved) setBookingLink(saved);
-  }, []);
+    if (!currentUser) {
+      const saved = localStorage.getItem('zelvarix_booking_link');
+      if (saved) setBookingLink(saved);
+    }
+  }, [currentUser]);
 
   // ── Google Analytics ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -2941,9 +2945,28 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
               <div style={{ fontSize:13, color:T.inkm, marginBottom:16, lineHeight:1.7 }}>Your Calendly or Cal.com booking link. When set, it's automatically appended to every AI-drafted outreach email so prospects can book a call directly.</div>
               <div style={{ display:"flex", gap:10 }}>
                 <input className="input-base" value={bookingLink} onChange={e=>setBookingLink(e.target.value)} placeholder="https://calendly.com/your-name/30min" style={{ flex:1 }} />
-                <button onClick={()=>{ localStorage.setItem('zelvarix_booking_link', bookingLink); alert('Booking link saved!'); }} style={{ padding:"9px 20px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>Save</button>
+                <button onClick={async ()=>{
+                  setBookingLinkSaving(true); setBookingLinkMsg("");
+                  try {
+                    if (!currentUser) throw new Error("Not signed in");
+                    const { error } = await sb.from("profiles").upsert({ id: currentUser.id, booking_link: bookingLink || null });
+                    if (error) throw error;
+                    localStorage.setItem('zelvarix_booking_link', bookingLink);
+                    setBookingLinkMsg("saved");
+                  } catch (e) {
+                    setBookingLinkMsg("error:" + e.message);
+                  } finally {
+                    setBookingLinkSaving(false);
+                  }
+                }} disabled={bookingLinkSaving} style={{ padding:"9px 20px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>Save</button>
               </div>
-              {bookingLink && (
+              {bookingLinkMsg==="saved" && (
+                <div style={{ marginTop:10, fontSize:12, color:T.green }}>✓ Saved — will appear in AI-drafted emails on every device you sign in from</div>
+              )}
+              {bookingLinkMsg.startsWith("error:") && (
+                <div style={{ marginTop:10, fontSize:12, color:T.red }}>{bookingLinkMsg.replace("error:","Couldn't save: ")}</div>
+              )}
+              {!bookingLinkMsg && bookingLink && (
                 <div style={{ marginTop:10, fontSize:12, color:T.green }}>✓ Booking link active — will appear in AI-drafted emails</div>
               )}
             </div>
