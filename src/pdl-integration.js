@@ -6,16 +6,12 @@ export function searchPeople(options) {
   const pageSize    = (options && options.pageSize)    || 5;
   const scrollToken = (options && options.scrollToken) || null;
   const naicsCodes  = (options && options.naicsCodes)  || [];
-  const companyKeyword = (options && options.companyKeyword) || '';
-  const companyName    = (options && options.companyName)    || '';
 
   const body = {
     size: pageSize,
     filters: filters,
     query: query,
     naics_codes: naicsCodes,
-    companyKeyword: companyKeyword,  // read by /api/pdl-search as body.companyKeyword
-    companyName: companyName,        // read by /api/pdl-search as body.companyName
   };
 
   if (scrollToken) body.scroll_token = scrollToken;
@@ -25,8 +21,21 @@ export function searchPeople(options) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   }).then(function(res) {
-    if (!res.ok) throw new Error('PDL search failed: ' + res.status);
-    return res.json();
+    return res.json().then(function(data) {
+      // PDL returns HTTP 404 with { error: { type: "not_found" } } for a well-formed
+      // search that simply matched nothing — that's a valid empty result, not a failure.
+      // Only treat it as an error if the response isn't recognizably PDL's not-found shape.
+      if (!res.ok) {
+        var isNotFound = res.status === 404 &&
+          ((data.error && (data.error.type === 'not_found' || data.status === 404)) || data.status === 404);
+        if (!isNotFound) {
+          var err = new Error((data.error && (data.error.message || data.error.type)) || ('PDL search failed: ' + res.status));
+          err.status = res.status;
+          throw err;
+        }
+      }
+      return data;
+    });
   }).then(function(data) {
     var people = data.data || [];
     return {
