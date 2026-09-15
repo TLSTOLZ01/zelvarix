@@ -600,7 +600,15 @@ export default function App() {
       setPdlHasMore(result.hasMore);
       setPdlPage(page);
     } catch(err) {
-      setPdlError("Live search error — check your PDL API key or try again.");
+      // err.status distinguishes a real failure from PDL's zero-results case, which
+      // pdl-integration.js already resolves as an empty result set rather than throwing.
+      if (err.status === 429) {
+        setPdlError("You're searching a bit fast — wait a few seconds and try again.");
+      } else if (err.status >= 500) {
+        setPdlError("The contact database is temporarily unavailable. Try again in a moment.");
+      } else {
+        setPdlError("Search failed: " + (err.message || "please try again") + ". If this keeps happening, contact support@zelvarix.ai.");
+      }
       // Don't reset to sample data — keep live mode active so user can retry
     }
     setPdlLoading(false);
