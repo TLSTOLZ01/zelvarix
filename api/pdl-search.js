@@ -34,9 +34,13 @@ export default async function handler(req, res) {
       });
     }
 
-    // Exact company name (e.g. "Chevron")
+    // Exact company name (e.g. "Chevron"). Uses match_phrase, not match: a plain
+    // "match" tokenizes the input and matches ANY of the words anywhere in the
+    // field, so a two-word company name like "Senior Estate" was matching every
+    // company containing "senior" OR "estate" — millions of unrelated records.
+    // match_phrase requires the words to appear together, in order.
     if (company_name && company_name.trim()) {
-      must.push({ match: { job_company_name: company_name.trim() } });
+      must.push({ match_phrase: { job_company_name: company_name.trim() } });
     }
 
     // Company keyword — broad match (e.g. "funeral", "beauty salon")
