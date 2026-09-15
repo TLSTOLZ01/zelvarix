@@ -6,12 +6,16 @@ export function searchPeople(options) {
   const pageSize    = (options && options.pageSize)    || 5;
   const scrollToken = (options && options.scrollToken) || null;
   const naicsCodes  = (options && options.naicsCodes)  || [];
+  const companyKeyword = (options && options.companyKeyword) || '';
+  const companyName    = (options && options.companyName)    || '';
 
   const body = {
     size: pageSize,
     filters: filters,
     query: query,
     naics_codes: naicsCodes,
+    companyKeyword: companyKeyword,  // read by /api/pdl-search as body.companyKeyword
+    companyName: companyName,        // read by /api/pdl-search as body.companyName
   };
 
   if (scrollToken) body.scroll_token = scrollToken;
