@@ -80,6 +80,27 @@ export default async function handler(req, res) {
     });
     const topupRevenueLast30d = topups.reduce((sum, e) => sum + ((e.data.object.amount_total || 0) / 100), 0);
 
+    // Signups by source: profiles.signup_ref is set at onboarding from the visitor's first ?ref= tag.
+    // Wrapped so the dashboard still loads if the attribution columns aren't in place yet.
+    let signups = null;
+    try {
+      const { data: profs, error: profErr } = await supabase
+        .from('profiles')
+        .select('signup_ref, signup_at');
+      if (profErr) throw profErr;
+      const tally = {};
+      for (const p of profs || []) {
+        const source = p.signup_ref || 'direct / organic';
+        if (!tally[source]) tally[source] = { source, last30d: 0, allTime: 0 };
+        tally[source].allTime += 1;
+        if (p.signup_at && new Date(p.signup_at) >= thirtyDaysAgo) tally[source].last30d += 1;
+      }
+      const sources = Object.values(tally).sort((a, b) => b.last30d - a.last30d || b.allTime - a.allTime);
+      signups = { total: (profs || []).length, sources };
+    } catch (e) {
+      console.warn('Signup source stats unavailable:', e.message);
+    }
+
     return res.status(200).json({
       generatedAt: now.toISOString(),
       subscriptions: {
@@ -102,6 +123,7 @@ export default async function handler(req, res) {
         countLast30d: topups.length,
         revenueLast30d: Math.round(topupRevenueLast30d * 100) / 100,
       },
+      signups,
     });
 
   } catch (err) {
