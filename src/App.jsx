@@ -9,6 +9,28 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 // Stripe Customer Portal (Live) — customers update payment method, switch plans, or cancel here
 const STRIPE_PORTAL_URL = "https://billing.stripe.com/p/login/eVq9AUc6K8Ui0Ize9j2Ji00";
 
+// ── Signup source attribution ──
+// Remember the first ?ref= tag a visitor arrives with (card, deck, SEO pages, newsletter, etc.) for 30 days,
+// so it survives leaving and returning, or signing up via Google. Saved to the profile at onboarding.
+const REF_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+try {
+  const refParam = new URLSearchParams(window.location.search).get("ref");
+  if (refParam) {
+    const existing = JSON.parse(localStorage.getItem("zelvarix_ref") || "null");
+    if (!existing || (Date.now() - existing.at) > REF_WINDOW_MS) {
+      localStorage.setItem("zelvarix_ref", JSON.stringify({ ref: refParam.slice(0, 60), at: Date.now() }));
+    }
+  }
+} catch (e) { /* storage unavailable — attribution is best-effort */ }
+
+// Friendly names for the ref tags used across the site, for the Admin "Signups by source" card
+const REF_LABELS = {
+  card: "Business card QR", deck: "Presentation deck QR",
+  "apollo-alt": "SEO: Apollo alternative", "zoominfo-alt": "SEO: ZoomInfo alternative",
+  listicle: "SEO: per-seat pricing list", "guide-prospect-list": "SEO: prospect list guide",
+  "guide-cold-email": "SEO: cold email guide", newsletter: "Newsletter", linkedin: "LinkedIn",
+};
+
 // ─── APOLLO / AI CONFIG ──────────────────────────────────────────────────────
 const ANTHROPIC_MODEL = "claude-sonnet-4-6";
 const STRIPE_PUB_KEY   = "pk_test_51Tp9If4J6FrtuXSsfpSZJNnN5fZKLO7sy0V7XI8uPJlJGsuSvtTcuqA7KVoMW6tGbHdWWIPAkrHcHtEmpUxodtWr00AJ8iZyED";
@@ -1980,7 +2002,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
     async function saveAndLaunch() {
       try {
         if (currentUser) {
-          await sb.from("profiles").upsert({
+          const baseProfile = {
             id: currentUser.id,
             name: onboardData.name,
             company: onboardData.company || null,
@@ -1988,7 +2010,19 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
             goal: onboardData.goal || null,
             referral_source: onboardData.referralSource || null,
             booking_link: onboardData.bookingLink || null,
-          });
+          };
+          // Attribution: the ?ref= tag remembered from the visitor's first visit (within 30 days)
+          let signupRef = null;
+          try {
+            const r = JSON.parse(localStorage.getItem("zelvarix_ref") || "null");
+            if (r && (Date.now() - r.at) <= REF_WINDOW_MS) signupRef = r.ref;
+          } catch (e) {}
+          const { error: profErr } = await sb.from("profiles").upsert({ ...baseProfile, signup_ref: signupRef, signup_at: new Date().toISOString() });
+          if (profErr) {
+            // If the attribution columns aren't available for any reason, still save the profile itself
+            console.warn("Profile save with attribution failed, retrying without:", profErr);
+            await sb.from("profiles").upsert(baseProfile);
+          }
           if (onboardData.bookingLink) setBookingLink(onboardData.bookingLink);
         }
       } catch(e) { console.warn("Profile save error:", e); }
@@ -2931,6 +2965,25 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                     <div style={{ fontSize:12, color:T.inkm, marginTop:4 }}>{adminStats.topups.countLast30d} purchases, last 30 days</div>
                   </div>
                 </div>
+
+                {adminStats.signups && (
+                  <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:"18px 20px", maxWidth:600, marginBottom:24 }}>
+                    <div style={{ fontSize:12, color:T.inkm, marginBottom:12 }}>Signups by source</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 90px", rowGap:8, fontSize:13, color:T.ink }}>
+                      <div style={{ fontSize:11, color:T.inkmut }}>Source</div>
+                      <div style={{ fontSize:11, color:T.inkmut, textAlign:"right" }}>Last 30 days</div>
+                      <div style={{ fontSize:11, color:T.inkmut, textAlign:"right" }}>All time</div>
+                      {adminStats.signups.sources.map(s => (
+                        <React.Fragment key={s.source}>
+                          <div>{REF_LABELS[s.source] || s.source}</div>
+                          <div style={{ textAlign:"right", fontFamily:"'DM Mono',monospace" }}>{s.last30d}</div>
+                          <div style={{ textAlign:"right", fontFamily:"'DM Mono',monospace" }}>{s.allTime}</div>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                    <div style={{ fontSize:11, color:T.inkmut, marginTop:12 }}>"direct / organic" = no tracking tag (search, typed URL, or signed up before tracking began).</div>
+                  </div>
+                )}
 
                 <div style={{ fontSize:12, color:T.inkmut, marginBottom:8 }}>Last updated {new Date(adminStats.generatedAt).toLocaleString()}</div>
                 <div style={{ background:T.paper, border:`1px solid ${T.border}`, borderRadius:6, padding:"14px 18px", fontSize:13, color:T.inkm, maxWidth:600 }}>
