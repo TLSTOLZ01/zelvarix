@@ -326,7 +326,7 @@ const FAQS = [
   { q:"What is a search?", a:"A search is one query to our contact database. Each search returns 3–10 results depending on your plan. Reveals come from those results — you choose which contacts are worth revealing." },
   { q:"Do unused reveals roll over?", a:"Reveals and searches reset monthly on your billing date. They do not roll over, so use them each month for maximum value." },
   { q:"Can I change plans anytime?", a:"Yes for Starter and Pro — upgrade or downgrade anytime, no annual commitment required. The Team plan is annual-only: $249/month, billed as $2,988 per year. Downgrades from Team take effect at the end of your annual term." },
-  { q:"Is there a free trial?", a:"Every paid plan starts with a 7-day free trial — no credit card required. Full access to all features during the trial." },
+  { q:"Is there a free trial?", a:"Starter and Pro start with a 7-day free trial — no credit card required. Full access to all features during the trial. The Team plan is annual and starts billing right away." },
   { q:"How does team billing work?", a:"Every plan is one flat price for the whole team — you're never billed per seat. Pro includes up to 10 seats and Team up to 50. Reveals are shared across the team as a single pool, managed by your Admin." },
   { q:"What happens if we run out of reveals?", a:"You'll see a notification when reveals run low. Once exhausted, contact details are hidden until your monthly reset. Upgrade anytime for immediate access to more reveals." },
   { q:"What's the difference between Saved contacts and Lists?", a:"Starring a contact (★) adds it to your quick catch-all Saved contacts. Lists let you organize contacts into named groups — click the + button on any contact to add it to one or more lists, and manage them from the Lists tab." },
@@ -1049,7 +1049,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
           const revealsAdded = pack ? pack.reveals : "";
           alert(`Your top-up purchase was successful!${revealsAdded ? ` ${revealsAdded} reveals and ${pack.searches} searches` : " Your credits"} have been added to your account.`);
         } else {
-          alert("Zelvarix " + plan.charAt(0).toUpperCase() + plan.slice(1) + " is now active! Your 7-day free trial has started.");
+          alert("Zelvarix " + plan.charAt(0).toUpperCase() + plan.slice(1) + " is now active!" + (plan === "team" ? "" : " Your 7-day free trial has started."));
         }
       }, 1000);
     } else if (payment === "cancelled") {
@@ -1464,7 +1464,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
             Pay for what you<br /><span style={{ color:T.green, fontStyle:"italic" }}>actually use.</span>
           </h1>
           <p style={{ fontSize:16, color:T.inkm, lineHeight:1.7, marginBottom:32 }}>
-            7-day free trial on every plan. No card required.<br />Searching is always free — credits only spend on contact reveals.
+            7-day free trial on Starter and Pro. No card required.<br />Searching is always free — credits only spend on contact reveals.
           </p>
           {/* Monthly/Annual toggle removed Oct 24, 2026: no annual Starter/Pro prices exist in Stripe.
               pricingYearly state is kept (always false) so it can be re-enabled once annual prices are added. */}
@@ -1586,7 +1586,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
               <button onClick={()=>choosePlan(PLANS[1])} style={{ padding:"12px 28px", background:T.green, border:"none", borderRadius:5, color:"#fff", fontWeight:700, fontSize:15, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Start Pro free →</button>
               <button onClick={()=>{ setAppView("auth"); setAuthMode("login"); }} style={{ padding:"12px 22px", background:"#fff", border:`1px solid ${T.border}`, borderRadius:5, color:T.inkl, fontWeight:500, fontSize:15, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Sign in</button>
             </div>
-            <div style={{ marginTop:14, fontSize:12, color:T.inkmut }}>No card required · Cancel anytime · 7-day trial on all plans</div>
+            <div style={{ marginTop:14, fontSize:12, color:T.inkmut }}>No card required · Cancel anytime · 7-day trial on Starter and Pro</div>
           </div>
         </section>
 
