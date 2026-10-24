@@ -325,9 +325,9 @@ const FAQS = [
   { q:"What is a reveal?", a:"A reveal is when you click to see a contact's verified email and phone number. Browsing search results is always free — you only spend a reveal when you want the actual contact details." },
   { q:"What is a search?", a:"A search is one query to our contact database. Each search returns 3–10 results depending on your plan. Reveals come from those results — you choose which contacts are worth revealing." },
   { q:"Do unused reveals roll over?", a:"Reveals and searches reset monthly on your billing date. They do not roll over, so use them each month for maximum value." },
-  { q:"Can I change plans anytime?", a:"Yes for Starter and Pro — upgrade or downgrade anytime, no annual commitment required. The Team plan is annual-only and billed as $249/seat/month × 12 months. Downgrades from Team take effect at the end of your annual term." },
+  { q:"Can I change plans anytime?", a:"Yes for Starter and Pro — upgrade or downgrade anytime, no annual commitment required. The Team plan is annual-only: $249/month, billed as $2,988 per year. Downgrades from Team take effect at the end of your annual term." },
   { q:"Is there a free trial?", a:"Every paid plan starts with a 7-day free trial — no credit card required. Full access to all features during the trial." },
-  { q:"How does team billing work?", a:"Pro and Team plans are billed per seat per month. Reveals are shared across the team as a single pool, managed by your Admin." },
+  { q:"How does team billing work?", a:"Every plan is one flat price for the whole team — you're never billed per seat. Pro includes up to 10 seats and Team up to 50. Reveals are shared across the team as a single pool, managed by your Admin." },
   { q:"What happens if we run out of reveals?", a:"You'll see a notification when reveals run low. Once exhausted, contact details are hidden until your monthly reset. Upgrade anytime for immediate access to more reveals." },
   { q:"What's the difference between Saved contacts and Lists?", a:"Starring a contact (★) adds it to your quick catch-all Saved contacts. Lists let you organize contacts into named groups — click the + button on any contact to add it to one or more lists, and manage them from the Lists tab." },
   { q:"Do you offer nonprofit or startup discounts?", a:"Yes. Verified nonprofits receive 40% off. Seed-stage startups (under $1M ARR) receive 30% off for the first year. Email support@zelvarix.ai." },
@@ -675,8 +675,8 @@ Zelvarix is a B2B prospecting platform that helps sales teams find decision make
 
 PLANS & PRICING:
 - Starter: $59/month flat — 1 seat, 30 searches (3 results each), 20 reveals per month
-- Pro: $99/month flat — up to 5 seats, 50 searches (5 results each), 50 reveals per month
-- Team: $249/month billed annually ($2,988/year) — up to 15 seats, 80 searches (10 results each), 100 reveals per month. Team is annual-only — no monthly option.
+- Pro: $99/month flat — up to 10 seats, 50 searches (5 results each), 50 reveals per month
+- Team: $249/month billed annually ($2,988/year) — up to 50 seats, 80 searches (10 results each), 100 reveals per month. Team is annual-only — no monthly option.
 - All plans share reveals as a team pool
 - Starter and Pro: cancel anytime, no annual commitment
 - Team: annual commitment only — cancels at end of annual term
@@ -1466,13 +1466,8 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
           <p style={{ fontSize:16, color:T.inkm, lineHeight:1.7, marginBottom:32 }}>
             7-day free trial on every plan. No card required.<br />Searching is always free — credits only spend on contact reveals.
           </p>
-          {/* Toggle */}
-          <div style={{ display:"inline-flex", alignItems:"center", gap:0, background:"#fff", border:`1px solid ${T.border}`, borderRadius:40, padding:"4px 5px" }}>
-            <button onClick={()=>setPricingYearly(false)} style={{ padding:"6px 18px", borderRadius:30, border:"none", background:!pricingYearly?T.ink:"transparent", color:!pricingYearly?T.cream:T.inkm, fontWeight:!pricingYearly?600:400, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all .2s" }}>Monthly</button>
-            <button onClick={()=>setPricingYearly(true)}  style={{ padding:"6px 18px", borderRadius:30, border:"none", background:pricingYearly?T.ink:"transparent",  color:pricingYearly?T.cream:T.inkm,  fontWeight:pricingYearly?600:400,  fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all .2s", display:"flex", alignItems:"center", gap:6 }}>
-              Annually <span style={{ fontSize:10, fontWeight:700, background:T.green, color:"#fff", padding:"2px 6px", borderRadius:10 }}>Save 25%</span>
-            </button>
-          </div>
+          {/* Monthly/Annual toggle removed Oct 24, 2026: no annual Starter/Pro prices exist in Stripe.
+              pricingYearly state is kept (always false) so it can be re-enabled once annual prices are added. */}
         </section>
 
         {/* Plan cards */}
@@ -1493,7 +1488,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                     <>
                       <div style={{ display:"flex", alignItems:"baseline", gap:3 }}>
                         <span style={{ fontFamily:"'DM Mono',monospace", fontSize:36, fontWeight:500, color:T.ink, lineHeight:1 }}>${plan.yearlyPrice}</span>
-                        <span style={{ fontSize:12, color:T.inkm }}>/seat/mo</span>
+                        <span style={{ fontSize:12, color:T.inkm }}>/mo</span>
                       </div>
                       <div style={{ fontSize:11, color:T.green, marginTop:3, fontWeight:600 }}>Billed annually (${plan.yearlyPrice * 12}/yr) · No monthly option</div>
                     </>
@@ -1501,7 +1496,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                     <>
                       <div style={{ display:"flex", alignItems:"baseline", gap:3 }}>
                         <span style={{ fontFamily:"'DM Mono',monospace", fontSize:36, fontWeight:500, color:plan.highlight?"#fff":T.ink, lineHeight:1 }}>${price}</span>
-                        <span style={{ fontSize:12, color:plan.highlight?"rgba(255,255,255,.4)":T.inkm }}>/seat/mo</span>
+                        <span style={{ fontSize:12, color:plan.highlight?"rgba(255,255,255,.4)":T.inkm }}>/mo</span>
                       </div>
                       {pricingYearly && plan.monthlyPrice && <div style={{ fontSize:11, color:T.green, marginTop:3, fontWeight:500 }}>Save ${(plan.monthlyPrice-plan.yearlyPrice)*12}/yr</div>}
                     </>
