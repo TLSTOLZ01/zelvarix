@@ -29,6 +29,7 @@ const REF_LABELS = {
   "apollo-alt": "SEO: Apollo alternative", "zoominfo-alt": "SEO: ZoomInfo alternative",
   listicle: "SEO: per-seat pricing list", "guide-prospect-list": "SEO: prospect list guide",
   "guide-cold-email": "SEO: cold email guide", newsletter: "Newsletter", linkedin: "LinkedIn",
+  x: "X (Twitter)", "blog-sdr": "Blog: prospect without an SDR", "outbound-msp": "Outbound: MSP owners",
 };
 
 // ─── APOLLO / AI CONFIG ──────────────────────────────────────────────────────
@@ -293,15 +294,15 @@ const PLANS = [
     monthlyPrice:null, yearlyPrice:249, credits:100, maxSeats:50,
     searches:80, resultsPerSearch:10, annualOnly:true,
     badge:"Best Value", highlight:false,
-    features:["100 shared reveals/month","80 searches/month (10 results each)","Everything in Pro","Custom reveal pools per seat","Buyer intent signals","Job change tracking","Chrome extension","API access (full)","Zapier integration","Dedicated account manager","SSO / SAML","SLA-backed uptime"],
+    features:["100 shared reveals/month","80 searches/month (10 results each)","Everything in Pro","Dedicated account manager","Coming soon: custom reveal pools per seat","Coming soon: buyer intent signals","Coming soon: job change tracking","Coming soon: Chrome extension","Coming soon: API access","Coming soon: Zapier integration","Coming soon: SSO / SAML"],
     missing:[],
   },
   {
-    id:"enterprise", name:"Enterprise", tagline:"For large orgs with custom needs",
+    id:"enterprise", name:"Enterprise", tagline:"For larger teams with custom needs",
     monthlyPrice:null, yearlyPrice:null, credits:null, maxSeats:null,
     searches:null, resultsPerSearch:null,
     badge:null, highlight:false,
-    features:["Unlimited reveals & seats","Everything in Team","Custom data SLA","Org chart mapping","Custom AI models","White-label option","On-premise deployment","24/7 phone support","Custom contract & invoicing"],
+    features:["Everything in Team","Custom reveal and search volumes","More than 50 seats","Custom contract & invoicing","Tell us what your team needs"],
     missing:[],
   },
 ];
