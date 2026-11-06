@@ -1248,7 +1248,14 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
     const { data: mem } = await sb.from("team_members").select("team_id, role").eq("user_id", user.id).maybeSingle();
     if (mem) {
       const { data: team } = await sb.from("teams").select("*").eq("id", mem.team_id).single();
-      if (team) { setSbTeam(team); setSelectedPlan(team.plan); }
+      if (team) {
+        setSbTeam(team); setSelectedPlan(team.plan);
+        setRevealsUsed(team.reveals_used || 0); setRevealsTotal(team.reveals_total ?? 0);
+        setSearchesUsed(team.searches_used || 0); setSearchesTotal(team.searches_total ?? 0);
+        setResultsPerSearch(team.results_per_search || 3);
+        const paid = team.plan && ['starter','pro','team'].includes(team.plan) && (team.reveals_total || 0) > 0;
+        if (paid) { setIsPaidCustomer(true); setUseLiveData(true); }
+      }
       const { data: lsts } = await sb.from("lists").select("id, name, list_contacts(count)").eq("team_id", mem.team_id);
       if (lsts) setLists(lsts.map(l => ({ id: l.id, name: l.name, count: l.list_contacts?.[0]?.count || 0 })));
       loadListMemberships(mem.team_id);
@@ -1308,6 +1315,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
     const { data: team } = await sb.from("teams").insert({ name:`${signupData.name}'s Team`, plan:null, reveals_total:0, searches_total:0, credits_total:planCredits[pid]||1000, credits_used:0, seats_total:planSeats[pid]||10 }).select().single();
     if (team) {
       setSbTeam(team);
+      setRevealsUsed(0); setRevealsTotal(0); setSearchesUsed(0); setSearchesTotal(0);
       await sb.from("team_members").insert({ team_id: team.id, user_id: user.id, role:"admin", status:"active" });
     }
     // 4. Send welcome email (fire-and-forget — never blocks signup)
