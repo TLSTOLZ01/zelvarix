@@ -500,7 +500,7 @@ export default function App() {
   const [pdlPage, setPdlPage]           = useState(1);
   const [pdlHasMore, setPdlHasMore]     = useState(false);
   const [pdlScrollToken, setPdlScrollToken] = useState(null); // PDL pagination cursor for "Load more"
-  const [useLiveData, setUseLiveData]   = useState(false);
+  const [useLiveData, setUseLiveData]   = useState(true); // live is the default for every real account; only demo accounts use sample data
   const debounceRef                     = useRef(null);
   const [lists, setLists]             = useState([{ id:1, name:"Hot Prospects Q2", count:3 }, { id:2, name:"Enterprise Targets", count:12 }]);
   const [listMemberships, setListMemberships] = useState({}); // { [listId]: Set(contactIds) }
@@ -542,6 +542,7 @@ export default function App() {
   const [topUpLoading, setTopUpLoading]           = useState(null); // pack id being purchased
   const [isDemo, setIsDemo]                     = useState(false);
   const [isPaidCustomer, setIsPaidCustomer]     = useState(false);
+  const [hasSearched, setHasSearched]           = useState(false);
   const [showSupportBot, setShowSupportBot]     = useState(false);
   const [supportMessages, setSupportMessages]   = useState([
     { role:"assistant", text:"Hi! I'm Zelvarix Support. How can I help you today?", id:1 }
@@ -595,8 +596,10 @@ export default function App() {
     setPdlLoading(true);
     setPdlError(null);
     try {
+      const { data: sessData } = await sb.auth.getSession();
+      const accessToken = sessData?.session?.access_token || "";
       // "Load more" continues the same PDL result set via scroll_token; a fresh search starts over
-      const result = await searchPeople({ filters, query: searchQuery, pageSize: resultsPerSearch, scrollToken: append ? pdlScrollToken : null, companyKeyword: filters.companyKeyword || "", companyName: filters.companyName || "" });
+      const result = await searchPeople({ filters, query: searchQuery, pageSize: resultsPerSearch, scrollToken: append ? pdlScrollToken : null, accessToken, companyKeyword: filters.companyKeyword || "", companyName: filters.companyName || "" });
       // Strip email/phone — store in reveal cache, show in UI only after reveal
       const stripped = result.contacts.map(c => {
         if (c.email || c.phone) {
@@ -604,14 +607,10 @@ export default function App() {
         }
         return { ...c, email: "", phone: "" };
       });
-      // Track searches used
-      if (!append) {
-        const newSearchesUsed = searchesUsed + 1;
-        setSearchesUsed(newSearchesUsed);
-        if (sbTeam) {
-          sb.from("teams").update({ searches_used: newSearchesUsed }).eq("id", sbTeam.id).then(() => {});
-        }
-      }
+      // The server counts searches (and enforces the plan limit); mirror its numbers
+      if (typeof result.searchesUsed === "number") setSearchesUsed(result.searchesUsed);
+      if (typeof result.searchesTotal === "number") setSearchesTotal(result.searchesTotal);
+      setHasSearched(true);
       setPdlContacts(prev => {
         if (!append) return stripped;
         // Never show the same contact twice, even if PDL repeats one across pages
@@ -625,7 +624,13 @@ export default function App() {
     } catch(err) {
       // err.status distinguishes a real failure from PDL's zero-results case, which
       // pdl-integration.js already resolves as an empty result set rather than throwing.
-      if (err.status === 429) {
+      if (err.status === 401) {
+        setPdlError("Your session expired. Please sign in again.");
+      } else if (err.status === 402) {
+        setPdlError("Start your free trial to run live searches.");
+      } else if (err.status === 403) {
+        setPdlError("You've used all your searches for this period. Buy a top-up pack or upgrade your plan in Billing.");
+      } else if (err.status === 429) {
         setPdlError("You're searching a bit fast — wait a few seconds and try again.");
       } else if (err.status >= 500) {
         setPdlError("The contact database is temporarily unavailable. Try again in a moment.");
@@ -1096,7 +1101,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
         const { data: profile } = await sb.from("profiles").select("*").eq("id", user.id).single();
         if (profile) {
           setOnboardData({ name: profile.name||"", company: profile.company||"", role: profile.role||"", goal: profile.goal||"" });
-          if (profile.is_demo) setIsDemo(true);
+          if (profile.is_demo) { setIsDemo(true); setUseLiveData(false); }
         }
         // Load team
         const { data: mem } = await sb.from("team_members").select("team_id, role").eq("user_id", user.id).maybeSingle();
@@ -1236,7 +1241,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
     const { data: profile } = await sb.from("profiles").select("*").eq("id", user.id).single();
     if (profile) {
       setOnboardData({ name: profile.name||"", company: profile.company||"", role: profile.role||"", goal: profile.goal||"", bookingLink: profile.booking_link||"" });
-      if (profile.is_demo) setIsDemo(true);
+      if (profile.is_demo) { setIsDemo(true); setUseLiveData(false); }
       if (profile.booking_link) setBookingLink(profile.booking_link);
     }
     // Load team
@@ -2251,16 +2256,11 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                       <span style={{ width:7, height:7, borderRadius:"50%", background:T.amber, display:"inline-block" }} />
                       Demo Mode
                     </div>
-                  ) : isPaidCustomer ? (
+                  ) : (
                     <div style={{ fontSize:11, fontWeight:600, padding:"4px 10px", border:`1px solid ${T.green}`, borderRadius:3, background:T.greenl, color:T.green, display:"flex", alignItems:"center", gap:5 }}>
                       <span style={{ width:7, height:7, borderRadius:"50%", background:T.green, display:"inline-block", animation:pdlLoading?"pulse 1s infinite":"none" }} />
                       Live Data
                     </div>
-                  ) : (
-                    <button onClick={()=>{ const next=!useLiveData; setUseLiveData(next); if(next) runPDLSearch(1,false); }} style={{ fontSize:11, fontWeight:600, padding:"4px 10px", border:`1px solid ${useLiveData?T.green:T.border}`, borderRadius:3, background:useLiveData?T.greenl:"#fff", color:useLiveData?T.green:T.inkm, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", display:"flex", alignItems:"center", gap:5 }}>
-                      <span style={{ width:7, height:7, borderRadius:"50%", background:useLiveData?T.green:T.inkmut, display:"inline-block", animation:useLiveData&&pdlLoading?"pulse 1s infinite":"none" }} />
-                      {useLiveData ? "Live Data" : "Sample Data"}
-                    </button>
                   )}
                   {pdlError && <span style={{ fontSize:11, color:T.amber }}>{pdlError}</span>}
                   {isDemo && <span style={{ fontSize:11, fontWeight:600, color:T.amber, background:T.amberl, border:`1px solid ${T.amberb}`, borderRadius:3, padding:"3px 8px" }}>Demo Mode — Sample Data Only</span>}
@@ -2306,6 +2306,12 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                   <div style={{ textAlign:"center", padding:"60px 20px" }}>
                     <div style={{ width:32, height:32, border:`3px solid ${T.paperd}`, borderTopColor:T.green, borderRadius:"50%", animation:"spin .8s linear infinite", margin:"0 auto 14px" }} />
                     <div style={{ fontSize:13, color:T.inkm }}>Searching live contacts…</div>
+                  </div>
+                ) : useLiveData && !hasSearched && sorted.length===0 ? (
+                  <div style={{ textAlign:"center", padding:"60px 20px" }}>
+                    <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:24, color:T.ink, marginBottom:8 }}>{sbTeam?.plan ? "Ready when you are" : "Start your free trial to search"}</div>
+                    <div style={{ fontSize:13, color:T.inkm, marginBottom:16, lineHeight:1.7 }}>{sbTeam?.plan ? "Set your filters on the left and press Search. Nothing runs until you do." : "Search live contacts with 10 searches and 10 reveals for 7 days. No card required."}</div>
+                    {!sbTeam?.plan && (<button onClick={()=>setAppView("pricing")} style={{ padding:"10px 22px", background:T.green, border:"none", borderRadius:5, color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Start free trial</button>)}
                   </div>
                 ) : sorted.length===0 ? (
                   <div style={{ textAlign:"center", padding:"60px 20px" }}>
