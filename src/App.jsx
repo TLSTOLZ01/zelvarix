@@ -1111,9 +1111,9 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
             setSbTeam(team);
             setSelectedPlan(team.plan);
             setRevealsUsed(team.reveals_used || 0);
-            setRevealsTotal(team.reveals_total || 20);
+            setRevealsTotal(team.reveals_total ?? 0);
             setSearchesUsed(team.searches_used || 0);
-            setSearchesTotal(team.searches_total || 30);
+            setSearchesTotal(team.searches_total ?? 0);
             // Auto-switch to live data for paying customers
             const paid = team.plan && ['starter','pro','team'].includes(team.plan) && (team.reveals_total || 0) > 0;
             if (paid) { setIsPaidCustomer(true); setUseLiveData(true); }
@@ -1305,7 +1305,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
     const planCredits = { starter:200, pro:1000, team:5000, enterprise:999999 };
     const planSeats   = { starter:1,   pro:10,   team:50,   enterprise:9999   };
     const pid = selectedPlan || "pro";
-    const { data: team } = await sb.from("teams").insert({ name:`${signupData.name}'s Team`, plan:pid, credits_total:planCredits[pid]||1000, credits_used:0, seats_total:planSeats[pid]||10 }).select().single();
+    const { data: team } = await sb.from("teams").insert({ name:`${signupData.name}'s Team`, plan:null, reveals_total:0, searches_total:0, credits_total:planCredits[pid]||1000, credits_used:0, seats_total:planSeats[pid]||10 }).select().single();
     if (team) {
       setSbTeam(team);
       await sb.from("team_members").insert({ team_id: team.id, user_id: user.id, role:"admin", status:"active" });
@@ -2309,9 +2309,9 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                   </div>
                 ) : useLiveData && !hasSearched && sorted.length===0 ? (
                   <div style={{ textAlign:"center", padding:"60px 20px" }}>
-                    <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:24, color:T.ink, marginBottom:8 }}>{sbTeam?.plan ? "Ready when you are" : "Start your free trial to search"}</div>
-                    <div style={{ fontSize:13, color:T.inkm, marginBottom:16, lineHeight:1.7 }}>{sbTeam?.plan ? "Set your filters on the left and press Search. Nothing runs until you do." : "Search live contacts with 10 searches and 10 reveals for 7 days. No card required."}</div>
-                    {!sbTeam?.plan && (<button onClick={()=>setAppView("pricing")} style={{ padding:"10px 22px", background:T.green, border:"none", borderRadius:5, color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Start free trial</button>)}
+                    <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:24, color:T.ink, marginBottom:8 }}>{sbTeam?.searches_total > 0 ? "Ready when you are" : "Start your free trial to search"}</div>
+                    <div style={{ fontSize:13, color:T.inkm, marginBottom:16, lineHeight:1.7 }}>{sbTeam?.searches_total > 0 ? "Set your filters on the left and press Search. Nothing runs until you do." : "Search live contacts with 10 searches and 10 reveals for 7 days. No card required."}</div>
+                    {!(sbTeam?.searches_total > 0) && (<button onClick={()=>setAppView("pricing")} style={{ padding:"10px 22px", background:T.green, border:"none", borderRadius:5, color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Start free trial</button>)}
                   </div>
                 ) : sorted.length===0 ? (
                   <div style={{ textAlign:"center", padding:"60px 20px" }}>
