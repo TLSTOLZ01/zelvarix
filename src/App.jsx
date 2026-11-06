@@ -30,6 +30,10 @@ const REF_LABELS = {
   listicle: "SEO: per-seat pricing list", "guide-prospect-list": "SEO: prospect list guide",
   "guide-cold-email": "SEO: cold email guide", newsletter: "Newsletter", linkedin: "LinkedIn",
   x: "X (Twitter)", "blog-sdr": "Blog: prospect without an SDR", "outbound-msp": "Outbound: MSP owners",
+  "seo-home": "SEO: Homepage", "seo-pricing": "SEO: Pricing", "seo-faq": "SEO: FAQ", "seo-how-it-works": "SEO: How it works",
+  "seo-msp": "SEO: MSP page", "seo-it-services": "SEO: IT services page", "seo-vs-seamless": "SEO: Seamless comparison",
+  "seo-signal-guide": "SEO: Signal-based outbound guide", "seo-blog-signal-noise": "Blog: buying signals",
+  "seo-insurance": "SEO: Insurance page", "seo-professional-services": "SEO: Professional services page",
 };
 
 // ─── APOLLO / AI CONFIG ──────────────────────────────────────────────────────
@@ -2231,11 +2235,6 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                 { label:"Department", jsx: (
                   <select style={selectStyle} value={filters.department} onChange={e=>setFilters(p=>({...p,department:e.target.value}))}>
                     {DEPARTMENTS.map(o=><option key={o}>{o}</option>)}
-                  </select>
-                )},
-                { label:"Revenue", jsx: (
-                  <select style={selectStyle} value={filters.revenue} onChange={e=>setFilters(p=>({...p,revenue:e.target.value}))}>
-                    {REVENUES.map(o=><option key={o}>{o}</option>)}
                   </select>
                 )},
                 { label:"State", jsx: (
