@@ -593,6 +593,14 @@ export default function App() {
 
   // Live PDL search function
   const runPDLSearch = useCallback(async (page = 1, append = false) => {
+    // A search with nothing to search for would return random people and still cost credits
+    const hasCriteria = !!(searchQuery.trim() || filters.pdlIndustry || filters.companyName.trim() || filters.companyKeyword.trim() ||
+      filters.city.trim() || filters.size !== "Any Size" || filters.seniority !== "Any Seniority" ||
+      filters.department !== "Any Department" || filters.state !== "Any State");
+    if (!append && !hasCriteria) {
+      setPdlError("Add at least one filter or a name to search. Nothing was spent.");
+      return;
+    }
     setPdlLoading(true);
     setPdlError(null);
     try {
@@ -626,6 +634,8 @@ export default function App() {
       // pdl-integration.js already resolves as an empty result set rather than throwing.
       if (err.status === 401) {
         setPdlError("Your session expired. Please sign in again.");
+      } else if (err.status === 400) {
+        setPdlError("Add at least one filter or a name to search. Nothing was spent.");
       } else if (err.status === 402) {
         setPdlError("Start your free trial to run live searches.");
       } else if (err.status === 403) {
@@ -2319,7 +2329,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                   <div style={{ textAlign:"center", padding:"60px 20px" }}>
                     <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:24, color:T.ink, marginBottom:8 }}>{sbTeam?.searches_total > 0 ? "Ready when you are" : "Start your free trial to search"}</div>
                     <div style={{ fontSize:13, color:T.inkm, marginBottom:16, lineHeight:1.7 }}>{sbTeam?.searches_total > 0 ? "Set your filters on the left and press Search. Nothing runs until you do." : "Search live contacts with 10 searches and 10 reveals for 7 days. No card required."}</div>
-                    {!(sbTeam?.searches_total > 0) && (<button onClick={()=>setAppView("pricing")} style={{ padding:"10px 22px", background:T.green, border:"none", borderRadius:5, color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Start free trial</button>)}
+                    {!(sbTeam?.searches_total > 0) && (<button onClick={()=>setAppView("pricing")} style={{ padding:"10px 22px", background:T.green, border:"none", borderRadius:5, color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Choose a plan to start your trial</button>)}
                   </div>
                 ) : sorted.length===0 ? (
                   <div style={{ textAlign:"center", padding:"60px 20px" }}>
