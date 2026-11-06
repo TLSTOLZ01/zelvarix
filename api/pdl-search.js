@@ -41,6 +41,19 @@ export default async function handler(req, res) {
       return fail(res, 402, 'no_plan', 'Start your free trial to run live searches.');
     }
 
+    // 2b. Refuse a search with nothing to search for. It would return random people and cost
+    //     PDL credits. "Load more" (scroll_token) continues an earlier search, so it is exempt.
+    const f0 = body.filters || {};
+    const hasCriteria = !!(
+      (body.query || '').trim() || (body.companyName || '').trim() || (body.companyKeyword || '').trim() ||
+      (f0.pdlIndustry || '').trim() || (f0.city || '').trim() ||
+      (f0.size && f0.size !== 'Any Size') || (f0.seniority && f0.seniority !== 'Any Seniority') ||
+      (f0.department && f0.department !== 'Any Department') || (f0.state && f0.state !== 'Any State')
+    );
+    if (!body.scroll_token && !hasCriteria) {
+      return fail(res, 400, 'no_criteria', 'Add at least one filter or a name to search. Nothing was spent.');
+    }
+
     // 3. Any searches left this period?
     const used = team.searches_used || 0;
     if (used >= team.searches_total) {
