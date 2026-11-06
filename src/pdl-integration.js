@@ -8,6 +8,7 @@ export function searchPeople(options) {
   const naicsCodes  = (options && options.naicsCodes)  || [];
   const companyKeyword = (options && options.companyKeyword) || '';
   const companyName    = (options && options.companyName)    || '';
+  const accessToken    = (options && options.accessToken)    || '';
 
   const body = {
     size: pageSize,
@@ -22,7 +23,7 @@ export function searchPeople(options) {
 
   return fetch(PDL_PROXY, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + accessToken },
     body: JSON.stringify(body),
   }).then(function(res) {
     return res.json().then(function(data) {
@@ -47,6 +48,8 @@ export function searchPeople(options) {
       total: data.total || people.length,
       scrollToken: data.scroll_token || null,
       hasMore: !!(data.scroll_token),
+      searchesUsed: data.zelvarix ? data.zelvarix.searches_used : undefined,
+      searchesTotal: data.zelvarix ? data.zelvarix.searches_total : undefined,
     };
   });
 }
