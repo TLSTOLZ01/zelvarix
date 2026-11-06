@@ -1,8 +1,20 @@
-// v3 - PDL native industry search
+// v4 - PDL native industry search, now authenticated and quota-enforced server-side
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+const HARD_MAX_RESULTS = 10; // never request more than this from PDL in one call
+
+function fail(res, status, type, message) {
+  return res.status(status).json({ error: { type, message } });
+}
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const apiKey = process.env.PDL_API_KEY;
@@ -10,7 +22,44 @@ export default async function handler(req, res) {
 
   try {
     const body = req.body || {};
-    const size = body.size || 5;
+
+    // 1. Who is asking? Every search must come from a signed-in user.
+    const token = (req.headers.authorization || '').replace('Bearer ', '').trim();
+    if (!token) return fail(res, 401, 'unauthorized', 'Please sign in to search.');
+    const { data: userData, error: userErr } = await supabase.auth.getUser(token);
+    if (userErr || !userData || !userData.user) return fail(res, 401, 'unauthorized', 'Your session expired. Please sign in again.');
+    const userId = userData.user.id;
+
+    // 2. Which team (and plan) do they belong to?
+    const { data: mems } = await supabase.from('team_members').select('team_id').eq('user_id', userId).limit(1);
+    const teamId = mems && mems[0] && mems[0].team_id;
+    if (!teamId) return fail(res, 402, 'no_plan', 'Start your free trial to run live searches.');
+    const { data: team } = await supabase.from('teams')
+      .select('id, plan, searches_used, searches_total, results_per_search')
+      .eq('id', teamId).single();
+    if (!team || !team.plan || !(team.searches_total > 0)) {
+      return fail(res, 402, 'no_plan', 'Start your free trial to run live searches.');
+    }
+
+    // 3. Any searches left this period?
+    const used = team.searches_used || 0;
+    if (used >= team.searches_total) {
+      return fail(res, 403, 'quota_exceeded', 'You have used all your searches for this period.');
+    }
+
+    // 4. Reserve the search before spending PDL credits. The compare-and-set stops parallel
+    //    requests from slipping past the limit. It is refunded below if PDL returns nothing.
+    const { data: reserved } = await supabase.from('teams')
+      .update({ searches_used: used + 1 })
+      .eq('id', team.id).eq('searches_used', used).select('searches_used');
+    if (!reserved || reserved.length === 0) {
+      return fail(res, 409, 'busy', 'Please try that search again.');
+    }
+    const refund = () => supabase.from('teams').update({ searches_used: used }).eq('id', team.id);
+
+    // Result count comes from the plan, not from the browser, and is capped.
+    const requested = parseInt(body.size, 10) || 3;
+    const size = Math.max(1, Math.min(requested, team.results_per_search || 3, HARD_MAX_RESULTS));
     const scroll_token = body.scroll_token || null;
     const filters = body.filters || {};
     const query = body.query || '';
@@ -110,6 +159,13 @@ export default async function handler(req, res) {
 
     const data = await pdlRes.json();
     console.log('PDL status:', pdlRes.status, 'results:', (data.data || []).length);
+
+    // Only a successful search uses up one of the customer's searches.
+    if (pdlRes.status === 200) {
+      data.zelvarix = { searches_used: used + 1, searches_total: team.searches_total };
+    } else {
+      await refund();
+    }
     return res.status(pdlRes.status).json(data);
 
   } catch (err) {
