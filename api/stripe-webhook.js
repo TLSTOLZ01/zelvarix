@@ -13,6 +13,11 @@ const PLAN_CONFIG = {
   team:    { plan:'team',    reveals_total:100, searches_total:80, results_per_search:10 },
 };
 
+// Trial allowance (Starter and Pro, no card). Capped so an unpaid trial costs at most
+// searches_total x results_per_search = 30 PDL credits (about $8.40). Raise or lower here.
+// The full plan quota is granted when the trial converts to a paid subscription.
+const TRIAL_CONFIG = { reveals_total:10, searches_total:10, results_per_search:3 };
+
 const TOPUP_CONFIG = {
   topup_small:  { reveals:10, searches:10 },
   topup_medium: { reveals:25, searches:25 },
@@ -98,6 +103,12 @@ export default async function handler(req, res) {
         const isActive = ['active', 'trialing'].includes(subscription.status);
         if (!isActive) break; // past_due/unpaid/canceled handled elsewhere or ignored
 
+        const isTrialing = subscription.status === 'trialing';
+        const quota = isTrialing ? TRIAL_CONFIG : config;
+        const convertedFromTrial = event.type === 'customer.subscription.updated'
+          && subscription.status === 'active'
+          && event.data.previous_attributes?.status === 'trialing';
+
         const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null;
 
         let teamId = await resolveTeamId(subscription);
@@ -115,9 +126,9 @@ export default async function handler(req, res) {
 
           const update = {
             plan: config.plan,
-            reveals_total: config.reveals_total,
-            searches_total: config.searches_total,
-            results_per_search: config.results_per_search,
+            reveals_total: quota.reveals_total,
+            searches_total: quota.searches_total,
+            results_per_search: quota.results_per_search,
             stripe_subscription_id: subscription.id,
             stripe_customer_id: subscription.customer,
             trial_end: trialEnd,
@@ -125,7 +136,7 @@ export default async function handler(req, res) {
           // Only reset usage when the subscription is new or the plan actually changed.
           // Other updates (adding a card, cancel_at_period_end, renewal metadata) must
           // not wipe the team's usage counters.
-          if (event.type === 'customer.subscription.created' || isNewSubscription || planChanged) {
+          if (event.type === 'customer.subscription.created' || isNewSubscription || planChanged || convertedFromTrial) {
             update.reveals_used = 0;
             update.searches_used = 0;
           }
@@ -136,9 +147,9 @@ export default async function handler(req, res) {
           const { data: newTeam } = await supabase.from('teams').insert({
             name: `${planId} team`,
             plan: config.plan,
-            reveals_total: config.reveals_total,
-            searches_total: config.searches_total,
-            results_per_search: config.results_per_search,
+            reveals_total: quota.reveals_total,
+            searches_total: quota.searches_total,
+            results_per_search: quota.results_per_search,
             reveals_used: 0,
             searches_used: 0,
             stripe_subscription_id: subscription.id,
