@@ -62,6 +62,12 @@ export default async function handler(req, res) {
 
       case 'checkout.session.completed': {
         const session = event.data.object;
+        // "Add a card" from the free trial (api/add-card.js): save the card and billing address
+        // on the customer and turn automatic tax on, so the first paid invoice is taxed correctly.
+        if (session.mode === 'setup' && session.metadata?.kind === 'add_card') {
+          await handleCardAdded(session);
+          break;
+        }
         const { userId, teamId, planId } = session.metadata || {};
         if (!userId || !planId) break;
 
@@ -175,6 +181,7 @@ export default async function handler(req, res) {
 
         // Reset team to free state (trial expired with no card, or cancelled at period end)
         await supabase.from('teams').update(FREE_STATE).eq('id', teamId);
+        await setCardFlag(teamId, false);
         break;
       }
 
@@ -226,6 +233,59 @@ export default async function handler(req, res) {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+// teams.has_payment_method is a convenience flag for the app ("card on file"). It is written in its
+// own update so that a missing column can never break the main plan/quota updates.
+async function setCardFlag(teamId, value) {
+  try {
+    const { error } = await supabase.from('teams').update({ has_payment_method: value }).eq('id', teamId);
+    if (error) console.warn('has_payment_method not saved (column missing?):', error.message);
+  } catch (e) { console.warn('has_payment_method not saved:', e.message); }
+}
+
+// Customer finished the "add a card" Checkout (setup mode).
+async function handleCardAdded(session) {
+  const { teamId, subscriptionId } = session.metadata || {};
+  const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id;
+  if (!customerId || !session.setup_intent) { console.warn('card added: missing customer or setup intent'); return; }
+
+  const setupIntent = await stripe.setupIntents.retrieve(session.setup_intent, { expand: ['payment_method'] });
+  const pm = setupIntent.payment_method;
+  if (!pm || typeof pm === 'string') { console.warn('card added: no payment method on setup intent'); return; }
+
+  const a = pm.billing_details?.address || {};
+  const address = {};
+  ['line1', 'line2', 'city', 'state', 'postal_code', 'country'].forEach(k => { if (a[k]) address[k] = a[k]; });
+  const hasAddress = !!(address.line1 && address.postal_code && address.country);
+
+  // Card + (if valid) billing address on the customer. validate_location 'immediately' makes Stripe
+  // reject an address it cannot use for tax now, instead of failing quietly on the first invoice.
+  let taxReady = false;
+  try {
+    await stripe.customers.update(customerId, {
+      invoice_settings: { default_payment_method: pm.id },
+      name: pm.billing_details?.name || undefined,
+      ...(hasAddress ? { address, tax: { validate_location: 'immediately' } } : {}),
+    });
+    taxReady = hasAddress;
+  } catch (e) {
+    console.error('TAX LOCATION PROBLEM: could not save billing address', customerId, e.message);
+    // Still save the card so the customer is not left without a payment method
+    await stripe.customers.update(customerId, { invoice_settings: { default_payment_method: pm.id } });
+  }
+
+  // Charge this card at the end of the trial, and calculate tax only if the address was accepted
+  if (subscriptionId) {
+    await stripe.subscriptions.update(subscriptionId, {
+      default_payment_method: pm.id,
+      ...(taxReady ? { automatic_tax: { enabled: true } } : {}),
+    });
+  }
+  if (!taxReady) console.error('TAX NOT ENABLED for subscription', subscriptionId, '- no valid billing address');
+
+  const resolvedTeamId = teamId || (customerId ? (await supabase.from('teams').select('id').eq('stripe_customer_id', customerId).maybeSingle()).data?.id : null);
+  if (resolvedTeamId) await setCardFlag(resolvedTeamId, true);
+}
 
 // Find the team for a subscription: metadata first, then by stored subscription id,
 // then by stored customer id.
