@@ -544,6 +544,8 @@ export default function App() {
   }, [view, adminStats, adminLoading]);
 
   const [topUpLoading, setTopUpLoading]           = useState(null); // pack id being purchased
+  const [planBusy, setPlanBusy]                   = useState(null); // plan id whose free trial is starting
+  const [cardBusy, setCardBusy]                   = useState(false); // opening Stripe to add a card
   const [isDemo, setIsDemo]                     = useState(false);
   const [isPaidCustomer, setIsPaidCustomer]     = useState(false);
   const [hasSearched, setHasSearched]           = useState(false);
@@ -830,9 +832,10 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
     setTopUpLoading(pack.id);
     try {
       const packId = pack.id === 'small' ? 'topup_small' : pack.id === 'medium' ? 'topup_medium' : 'topup_large';
+      const topUpToken = await getAccessToken();
       const res = await fetch("/api/stripe-checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${topUpToken}` },
         body: JSON.stringify({
           planId: packId,
           userId: currentUser.id,
@@ -1054,6 +1057,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
 
   // ── Auto-logout after 15 minutes of inactivity ──────────────────────────
   const inactivityRef = useRef(null);
+  const trialPromiseRef = useRef(null); // trial start kicked off at signup, awaited before the app opens
 
   // ── Handle Stripe return ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -1073,6 +1077,16 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
         }
       }, 1000);
     } else if (payment === "cancelled") {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    const cardResult = params.get("card");
+    if (cardResult === "added") {
+      window.history.replaceState({}, "", window.location.pathname);
+      // The webhook saves the card a moment after Stripe redirects back, so reload the team a couple of times
+      setTimeout(() => { refreshTeamFromDb(); }, 3000);
+      setTimeout(() => { refreshTeamFromDb(); }, 8000);
+      setTimeout(() => { alert("Card saved. Your plan will continue automatically when your free trial ends."); }, 1200);
+    } else if (cardResult === "cancelled") {
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
@@ -1294,6 +1308,72 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
     setAppView("app");
   }
 
+  // ── FREE TRIAL / CARD HELPERS ────────────────────────────────────────────────
+  async function getAccessToken() {
+    const { data } = await sb.auth.getSession();
+    return data?.session?.access_token || "";
+  }
+
+  // Copy a team row from Supabase into the header, billing and search state
+  function applyTeamRow(team) {
+    if (!team) return;
+    setSbTeam(team);
+    setSelectedPlan(team.plan);
+    setRevealsUsed(team.reveals_used || 0);
+    setRevealsTotal(team.reveals_total ?? 0);
+    setSearchesUsed(team.searches_used || 0);
+    setSearchesTotal(team.searches_total ?? 0);
+    setResultsPerSearch(team.results_per_search || 3);
+    const paid = team.plan && ['starter','pro','team'].includes(team.plan) && (team.reveals_total || 0) > 0;
+    if (paid) { setIsPaidCustomer(true); setUseLiveData(true); }
+  }
+
+  async function refreshTeamFromDb() {
+    try {
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) return;
+      const { data: mem } = await sb.from("team_members").select("team_id").eq("user_id", user.id).maybeSingle();
+      if (!mem) return;
+      const { data: team } = await sb.from("teams").select("*").eq("id", mem.team_id).single();
+      applyTeamRow(team);
+    } catch (e) { console.warn("Team refresh failed:", e); }
+  }
+
+  // Starts the 7-day no-card trial on the server (no Stripe page) and loads the new allowance.
+  async function startTrial(planId) {
+    try {
+      const token = await getAccessToken();
+      const res = await fetch("/api/start-trial", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ planId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.team_id) {
+        const { data: team } = await sb.from("teams").select("*").eq("id", data.team_id).single();
+        applyTeamRow(team);
+      }
+      return { ok: res.ok, status: res.status, ...data };
+    } catch (e) {
+      return { ok: false, status: 0, code: "network", error: "Could not start your trial. Check your connection and try again." };
+    }
+  }
+
+  // Opens Stripe to add a card and the billing address (needed for sales tax) before the trial ends
+  async function addCard() {
+    setCardBusy(true);
+    try {
+      const token = await getAccessToken();
+      const res = await fetch("/api/add-card", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json().catch(() => ({}));
+      if (data.url) { window.location.href = data.url; return; }
+      alert(data.error || "Could not open the card page. Please try again.");
+    } catch (e) {
+      alert("Could not open the card page. Please try again.");
+    }
+    setCardBusy(false);
+  }
+
   async function handleSignup() {
     setAuthError("");
     if (!signupData.name||!signupData.email||!signupData.password||!signupData.confirm) { setAuthError("Please fill in all fields."); return; }
@@ -1331,6 +1411,17 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
       setSbTeam(team);
       setRevealsUsed(0); setRevealsTotal(0); setSearchesUsed(0); setSearchesTotal(0);
       await sb.from("team_members").insert({ team_id: team.id, user_id: user.id, role:"admin", status:"active" });
+      // 3b. Start the free trial in the background while they complete onboarding.
+      //     The plan comes from the pricing-page button they clicked; otherwise Pro (same trial allowance).
+      let pendingPlan = "pro";
+      let skipTrial = false; // Team has no free trial: those visitors choose a plan after signup
+      try {
+        const pp = localStorage.getItem("zelvarix_pending_plan");
+        if (pp === "starter" || pp === "pro") pendingPlan = pp;
+        if (pp === "team") skipTrial = true;
+        localStorage.removeItem("zelvarix_pending_plan");
+      } catch (e) {}
+      if (!skipTrial) trialPromiseRef.current = startTrial(pendingPlan);
     }
     // 4. Send welcome email (fire-and-forget — never blocks signup)
     fetch('/api/welcome-email', {
@@ -1438,40 +1529,42 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
         window.location.href = "mailto:support@zelvarix.ai?subject=Enterprise Plan Inquiry";
         return;
       }
+      // Visitors who are not signed in: remember the plan, then sign up. The trial starts right after signup.
       if (!currentUser) {
+        try { localStorage.setItem("zelvarix_pending_plan", plan.id); } catch (e) {}
+        setAuthMode("signup");
         setAppView("auth");
         return;
       }
-      const priceId = STRIPE_PLAN_IDS[plan.id];
-      if (!priceId) return;
-      try {
-        // Don't trust sbTeam React state here — it can lag behind a just-completed signup.
-        // Look up the real team_id directly so Stripe checkout always gets the correct teamId.
-        let realTeamId = sbTeam?.id || null;
-        if (!realTeamId) {
-          const { data: mem } = await sb.from("team_members").select("team_id").eq("user_id", currentUser.id).maybeSingle();
-          realTeamId = mem?.team_id || null;
+      // Signed in, no plan yet: start the free trial directly (Starter and Pro only), no Stripe page.
+      const canTrial = (plan.id === "starter" || plan.id === "pro") && !sbTeam?.plan && !sbTeam?.stripe_subscription_id;
+      if (canTrial) {
+        setPlanBusy(plan.id);
+        const r = await startTrial(plan.id);
+        setPlanBusy(null);
+        if (r.ok || r.code === "already_started") { setAppView("app"); setView("discover"); return; }
+        if (r.code !== "trial_unavailable" && r.code !== "trial_used") {
+          alert(r.error || "Could not start your trial. Please try again.");
+          return;
         }
+        // No trial available for this account: say so, then continue to the paid checkout below
+        alert(r.error || "A free trial is not available for this account. You can subscribe instead.");
+      }
+      // Paid plans (and anyone not eligible for a trial) go to Stripe Checkout
+      try {
+        const token = await getAccessToken();
         const res = await fetch("/api/stripe-checkout", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            planId: plan.id,
-            userId: currentUser.id,
-            teamId: realTeamId,
-            email: currentUser.email,
-          }),
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ planId: plan.id }),
         });
         const data = await res.json();
         if (data.url) window.location.href = data.url;
-        else alert("Error starting checkout. Please try again.");
+        else alert(data.error || "Error starting checkout. Please try again.");
       } catch (err) {
         console.error("Checkout error:", err);
         alert("Error starting checkout. Please try again.");
       }
-         // If user already logged in, go straight to billing; else go to auth
-      if (currentUser) { setAppView("app"); setView("billing"); }
-      else { setAppView("auth"); setAuthMode("signup"); }
     }
     return (
       <div style={{ minHeight:"100vh", background:T.cream, fontFamily:"'DM Sans',sans-serif", color:T.ink }}>
@@ -1543,7 +1636,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                     </span>
                   </div>
                 </div>
-                <button onClick={()=>choosePlan(plan)} style={btnStyle(plan)}>{plan.id==="enterprise" ? "Talk to sales" : plan.annualOnly ? "Start annual plan →" : "Start free trial"}</button>
+                <button onClick={()=>choosePlan(plan)} disabled={!!planBusy} style={btnStyle(plan)}>{planBusy===plan.id ? "Starting your trial…" : plan.id==="enterprise" ? "Talk to sales" : plan.annualOnly ? "Start annual plan →" : "Start free trial"}</button>
                 <div style={{ marginTop:18, flex:1 }}>
                   {plan.features.map(f => (
                     <div key={f} style={{ display:"flex", alignItems:"flex-start", gap:7, marginBottom:8 }}>
@@ -2049,6 +2142,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
           if (onboardData.bookingLink) setBookingLink(onboardData.bookingLink);
         }
       } catch(e) { console.warn("Profile save error:", e); }
+      try { if (trialPromiseRef.current) { await trialPromiseRef.current; trialPromiseRef.current = null; } } catch (e) {}
       setAppView("app");
     }
     return (
@@ -2192,6 +2286,10 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
             ? "Your free trial ends today — upgrade now to keep uninterrupted access."
             : `${trialDaysLeft} day${trialDaysLeft===1?"":"s"} left in your free trial.`}
           {" "}
+          {sbTeam?.has_payment_method
+            ? <span>Card on file. Your plan continues automatically.</span>
+            : <button onClick={addCard} disabled={cardBusy} style={{ background:"none", border:"none", color:"inherit", textDecoration:"underline", cursor:"pointer", fontWeight:700, fontSize:"inherit", fontFamily:"'DM Sans',sans-serif", padding:0 }}>{cardBusy ? "Opening…" : `Add a card to keep ${activePlan.name} ($${activePlan.monthlyPrice}/mo)`}</button>}
+          {" · "}
           <button onClick={()=>{ setView("billing"); }} style={{ background:"none", border:"none", color:"inherit", textDecoration:"underline", cursor:"pointer", fontWeight:700, fontSize:"inherit", fontFamily:"'DM Sans',sans-serif", padding:0 }}>View billing</button>
         </div>
       )}
@@ -2860,6 +2958,11 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                   <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${T.border}`, fontSize:12, fontWeight:600, color: trialDaysLeft <= 2 ? T.red : T.amber }}>
                     {trialDaysLeft === 0 ? "Trial ends today" : `${trialDaysLeft} day${trialDaysLeft===1?"":"s"} left in your free trial`}
                   </div>
+                )}
+                {trialDaysLeft !== null && trialDaysLeft >= 0 && (
+                  sbTeam?.has_payment_method
+                    ? <div style={{ marginTop:8, fontSize:12, color:T.green }}>Card on file. Your plan continues automatically when the trial ends.</div>
+                    : <button onClick={addCard} disabled={cardBusy} style={{ marginTop:10, padding:"8px 14px", background:T.green, border:"none", borderRadius:4, color:"#fff", fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>{cardBusy ? "Opening…" : "Add a card to keep your plan"}</button>
                 )}
               </div>
               <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
