@@ -2521,8 +2521,8 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                   {selectedContact.verified && <span style={{ fontSize:10, fontWeight:600, color:T.green, background:T.greenl, border:`1px solid ${T.greenb}`, padding:"2px 6px", borderRadius:2, letterSpacing:.5 }}>VERIFIED</span>}
                 </div>
                 {[["Industry",selectedContact.industry],["Location",selectedContact.location],["Employees",selectedContact.employees],["Revenue",selectedContact.revenue],["Seniority",selectedContact.seniority],["Department",selectedContact.department],
-                  ["Email", revealedIds.has(selectedContact.id) ? (revealCache[selectedContact.id]?.email || "—") : (selectedContact.email || (useLiveData ? "🔒 Click Reveal" : "—"))],
-                  ["Phone", revealedIds.has(selectedContact.id) ? (revealCache[selectedContact.id]?.phone || "—") : (selectedContact.phone || (useLiveData ? "🔒 Click Reveal" : "—"))]
+                  ["Email", revealedIds.has(selectedContact.id) ? (revealCache[selectedContact.id]?.email || "—") : (selectedContact.email || (useLiveData ? (revealCache[selectedContact.id]?.email ? "🔒 Click Reveal (button in the list row)" : "Not available for this contact") : "—"))],
+                  ["Phone", revealedIds.has(selectedContact.id) ? (revealCache[selectedContact.id]?.phone || "—") : (selectedContact.phone || (useLiveData ? (revealCache[selectedContact.id]?.phone ? "🔒 Click Reveal (button in the list row)" : "Not available for this contact") : "—"))]
                 ].map(([l,v])=>(
                   <div key={l} style={{ marginBottom:10 }}>
                     <div style={{ fontSize:10, fontWeight:600, color:T.inkmut, textTransform:"uppercase", letterSpacing:.8, marginBottom:2 }}>{l}</div>
