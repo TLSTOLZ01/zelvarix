@@ -3,13 +3,16 @@
   "outputDirectory": "dist",
   "redirects": [
     { "source": "/card", "destination": "/?ref=card", "permanent": false },
-    { "source": "/deck", "destination": "/?ref=deck", "permanent": false }
+    { "source": "/deck", "destination": "/?ref=deck", "permanent": false },
+    { "source": "/compare/apollo-alternative", "destination": "/", "permanent": true },
+    { "source": "/compare/apollo-alternative.html", "destination": "/", "permanent": true },
+    { "source": "/compare/zoominfo-alternative", "destination": "/", "permanent": true },
+    { "source": "/compare/zoominfo-alternative.html", "destination": "/", "permanent": true },
+    { "source": "/compare/prospecting-tools-without-per-seat-pricing", "destination": "/", "permanent": true },
+    { "source": "/compare/prospecting-tools-without-per-seat-pricing.html", "destination": "/", "permanent": true }
   ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/compare/apollo-alternative", "destination": "/compare/apollo-alternative.html" },
-    { "source": "/compare/zoominfo-alternative", "destination": "/compare/zoominfo-alternative.html" },
-    { "source": "/compare/prospecting-tools-without-per-seat-pricing", "destination": "/compare/prospecting-tools-without-per-seat-pricing.html" },
     { "source": "/guides/build-a-prospect-list", "destination": "/guides/build-a-prospect-list.html" },
     { "source": "/guides/first-cold-email-examples", "destination": "/guides/first-cold-email-examples.html" },
     { "source": "/blog/(.*)", "destination": "/blog/$1.html" },
