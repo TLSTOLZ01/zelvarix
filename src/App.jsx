@@ -29,7 +29,7 @@ const REF_LABELS = {
   "apollo-alt": "SEO: Apollo alternative", "zoominfo-alt": "SEO: ZoomInfo alternative",
   listicle: "SEO: per-seat pricing list", "guide-prospect-list": "SEO: prospect list guide",
   "guide-cold-email": "SEO: cold email guide", newsletter: "Newsletter", linkedin: "LinkedIn",
-  x: "X (Twitter)", "blog-sdr": "Blog: prospect without an SDR", "outbound-msp": "Outbound: MSP owners",
+  x: "X (Twitter)", "x-bio": "X profile link", "blog-sdr": "Blog: prospect without an SDR", "outbound-msp": "Outbound: MSP owners",
   "seo-home": "SEO: Homepage", "seo-pricing": "SEO: Pricing", "seo-faq": "SEO: FAQ", "seo-how-it-works": "SEO: How it works",
   "seo-msp": "SEO: MSP page", "seo-it-services": "SEO: IT services page", "seo-vs-seamless": "SEO: Seamless comparison",
   "seo-signal-guide": "SEO: Signal-based outbound guide", "seo-blog-signal-noise": "Blog: buying signals",
