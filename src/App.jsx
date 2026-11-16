@@ -282,7 +282,7 @@ const PLANS = [
     monthlyPrice:59, yearlyPrice:44, credits:20, maxSeats:1,
     searches:30, resultsPerSearch:3,
     badge:null, highlight:false,
-    features:["20 contact reveals/month","30 searches/month (3 results each)","Plain-English industry search","Company name & keyword filters","AI ice breakers & email drafts","My Lists (up to 5)","CSV export","Email support"],
+    features:["20 contact reveals/month","30 searches/month (3 results each)","Industry search","Company name & keyword filters","AI ice breakers & email drafts","My Lists (up to 5)","CSV export","Email support"],
     missing:["Team seats","Bulk email generator","Priority support","API access"],
   },
   {
@@ -327,7 +327,7 @@ const TOPUP_PACKS = [
 ];
 
 const FAQS = [
-  { q:"What is a reveal?", a:"A reveal is when you click to see a contact's verified email and phone number. Browsing search results is always free — you only spend a reveal when you want the actual contact details." },
+  { q:"What is a reveal?", a:"A reveal is when you click to see a contact's email and phone number. Search results show name, title, company and location without using a reveal, but each search you run counts toward your monthly searches. You only spend a reveal when you want the actual contact details." },
   { q:"What is a search?", a:"A search is one query to our contact database. Each search returns 3–10 results depending on your plan. Reveals come from those results — you choose which contacts are worth revealing." },
   { q:"Do unused reveals roll over?", a:"Reveals and searches reset monthly on your billing date. They do not roll over, so use them each month for maximum value." },
   { q:"Can I change plans anytime?", a:"Yes for Starter and Pro — upgrade or downgrade anytime, no annual commitment required. The Team plan is annual-only: $249/month, billed as $2,988 per year. Downgrades from Team take effect at the end of your annual term." },
@@ -693,7 +693,7 @@ export default function App() {
   const SUPPORT_SYSTEM_PROMPT = `You are a friendly and knowledgeable support agent for Zelvarix.ai, a B2B sales intelligence platform. Answer questions accurately and concisely. Here is everything you need to know:
 
 PRODUCT OVERVIEW:
-Zelvarix is a B2B prospecting platform that helps sales teams find decision makers, get verified contact information, and generate AI-powered personalized outreach emails. It is built for small to medium businesses and individual sales reps. Zelvarix uses its own proprietary contact database of 1.3B+ profiles — do not mention or reference any third-party data providers under any circumstances.
+Zelvarix is a B2B prospecting platform that helps sales teams find decision makers, find contact details, and generate AI-powered personalized outreach emails. It is built for small to medium businesses and individual sales reps. If asked where the data comes from, say you cannot share details about data sourcing. Never describe the data as verified or guaranteed accurate, never quote a contact count, and never say the database is owned by or proprietary to Zelvarix.
 
 PLANS & PRICING:
 - Starter: $59/month flat — 1 seat, 30 searches (3 results each), 20 reveals per month
@@ -703,20 +703,22 @@ PLANS & PRICING:
 - Starter and Pro: cancel anytime, no annual commitment
 - Team: annual commitment only — cancels at end of annual term
 - 7-day free trial on Starter and Pro — no credit card required. The trial includes 10 searches and 10 contact reveals; the full monthly allowance starts when the paid plan begins
-- Top-up packs available when reveals run out: Small ($9, +10 reveals), Medium ($19, +25 reveals), Large ($35, +50 reveals)
+- Top-up packs add searches and reveals together: Small ($9, +10 searches and +10 reveals), Medium ($19, +25 and +25), Large ($35, +50 and +50)
 
 HOW SEARCHES WORK:
 - Users filter by industry, company name, company keyword, size, seniority, department, state, city
 - Setting filters doesn't use a credit by itself — click the "Search" button (or press Enter in a text filter) to actually run the search
 - Sample Data mode shows demo contacts — no credits used
-- Live Data mode queries the Zelvarix proprietary contact database of 1.3B+ profiles
+- Live Data mode searches the Zelvarix contact database
 - Each time you click Search (or press Enter) in Live Data mode, it counts as 1 search against your monthly allowance — adjusting filters afterward and clicking Search again counts as another search
-- Loading more results on the same search (via "Load more contacts") does not use an additional search credit
+- Loading more results on the same search (via "Load more contacts") counts as another search
+- A search with no filters and no name will not run, and nothing is used
 - Results show name, title, company, location, seniority, and AI score
 
 HOW REVEALS WORK:
 - Contact email and phone are hidden by default in Live Data mode
 - Click the green "Reveal" button on any contact to see their email and phone
+- If a contact has no email or phone on record, there is no Reveal button and nothing is used
 - Each reveal uses 1 credit from your team's monthly reveal pool
 - Revealed contacts stay visible for the session
 - When reveals run out, an upgrade prompt appears
@@ -769,7 +771,7 @@ COMMON ISSUES:
 - "No results found": Try broader filters — remove industry or location restrictions
 - Industry search: Type at least 2 characters to see industry suggestions, or press Enter to search your exact typed term even if it's not in the suggestions
 - Company keyword vs Company name: Company name searches for an exact company (e.g. "Chevron"). Company keyword does a broad match (e.g. "funeral" finds all funeral-related companies)
-- Reveals not working: Check your reveals remaining in Settings — if at 0, you need to upgrade
+- Reveals not working: Check your reveals remaining in Settings — if at 0, you can buy a top-up pack or upgrade
 - AI panel not generating: Check your internet connection and try regenerating
 
 CONTACT & ESCALATION:
@@ -1016,8 +1018,8 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
   function toggleExport(id) { setSelectedForExport(p => { const n=new Set(p); n.has(id)?n.delete(id):n.add(id); return n; }); }
 
   function downloadCSV(contacts) {
-    const hdr = ["Name","Title","Company","Industry","Department","Seniority","Location","Email","Phone","Employees","Revenue","AI Score","Verified","Tags"];
-    const rows = contacts.map(c => [c.name,c.title,c.company,c.industry,c.department,c.seniority,c.location,c.email,c.phone,c.employees,c.revenue,c.score,c.verified?"Yes":"No",c.tags.join("; ")].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(","));
+    const hdr = ["Name","Title","Company","Industry","Department","Seniority","Location","Email","Phone","Employees","Revenue","AI Score","Tags"];
+    const rows = contacts.map(c => [c.name,c.title,c.company,c.industry,c.department,c.seniority,c.location,c.email,c.phone,c.employees,c.revenue,c.score,c.tags.join("; ")].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(","));
     // Track exported IDs for deduplication badges
     setExportedIds(prev => new Set([...prev, ...contacts.map(c => c.id)]));
     const blob = new Blob([[hdr.join(","),...rows].join("\n")], { type:"text/csv" });
@@ -1479,7 +1481,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
             B2B prospecting, built for<br />businesses like yours.
           </div>
           <div style={{ fontSize:14, color:"rgba(255,255,255,.6)", lineHeight:1.7, marginBottom:36, maxWidth:400, marginLeft:"auto", marginRight:"auto" }}>
-            Over 1.3 billion verified contacts, AI-powered outreach, and transparent flat pricing starting at $59/month. We're putting the finishing touches on things now.
+            B2B contact discovery with AI insights on each prospect, and transparent flat pricing starting at $59/month. We're putting the finishing touches on things now.
           </div>
 
           {wlDone ? (
@@ -1665,8 +1667,8 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:28 }}>
               {[
-                { n:"01", title:"Search freely",   body:"Filter across 1.3B+ verified contacts by industry, company, seniority, location, and department. Every search result shows name, title, company, and location — completely free." },
-                { n:"02", title:"Reveal to connect", body:"Click Reveal on any contact to see their verified email and phone number. One reveal credit per contact. You choose exactly who is worth reaching." },
+                { n:"01", title:"Search first",   body:"Filter by industry, company, seniority, location, and department. Every search result shows name, title, company, and location before you spend a reveal. Each search you run uses one of your monthly searches." },
+                { n:"02", title:"Reveal to connect", body:"Click Reveal on any contact to see their email and phone number, when one is on record. One reveal per contact. You choose exactly who is worth reaching." },
                 { n:"03", title:"Team pooling",    body:"Reveals are shared across your team on Pro and Team plans. Admins can monitor usage in the Settings tab to keep the pool balanced." },
               ].map(item => (
                 <div key={item.n} style={{ borderTop:`2px solid ${T.green}`, paddingTop:18 }}>
@@ -1906,7 +1908,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
               <div style={{ fontSize:15, color:T.inkm, marginBottom:40, lineHeight:1.7 }}>We're building the AI-native prospecting platform for modern sales teams.</div>
               <div style={{ display:"flex", flexDirection:"column", gap:28 }}>
                 {[
-                  { title:"Our mission", body:"Sales teams spend too much time finding contacts and not enough time selling. Zelvarix changes that — combining 1.3B+ verified contacts with Claude AI to give every rep the intelligence they need to find, research, and approach the right people fast." },
+                  { title:"Our mission", body:"Sales teams spend too much time finding contacts and not enough time selling. Zelvarix changes that — combining a large B2B contact database with Claude AI to give every rep the intelligence they need to find, research, and approach the right people fast." },
                   { title:"Why we built this", body:"Every existing prospecting tool was built for the pre-AI era. They're data dumps. Zelvarix is different — it doesn't just find contacts, it tells you exactly how to approach them with personalised ice breakers, lead score rationales, and AI-written outreach. We built the tool we always wanted." },
                   { title:"Our values", body:"Transparency over opacity — our AI scoring always explains its reasoning. Privacy by design — we handle contact data responsibly and only for legitimate B2B purposes. Fair pricing — we charge what we cost, not what the market will bear." },
                   { title:"Get in touch", body:"We're a small, focused team. If you have feedback, ideas, or want to talk enterprise — we'd love to hear from you. Email us at hello@zelvarix.ai or use the contact form." },
@@ -2016,9 +2018,9 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
           <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:30, color:T.cream, letterSpacing:-.5 }}>Zelvarix<span style={{ color:T.greenb, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
           <div>
             <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:40, color:T.cream, lineHeight:1.15, letterSpacing:-.8, marginBottom:20 }}>Find your next best customer <span style={{ color:T.greenb, fontStyle:"italic" }}>with AI.</span></div>
-            <div style={{ fontSize:14, color:T.inkm, lineHeight:1.8, marginBottom:36 }}>Zelvarix combines 1.3B+ verified contacts with Claude AI to give your team the intelligence edge.</div>
+            <div style={{ fontSize:14, color:T.inkm, lineHeight:1.8, marginBottom:36 }}>Zelvarix combines a large B2B contact database with Claude AI to give your team the intelligence edge.</div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:36 }}>
-              {[["1.3B+","Verified Contacts"],["121M+","Companies"],["95%","Data Accuracy"],["60s","Time to First Lead"]].map(([v,l])=>(
+              {[["7 days","Free trial, no card"],["Flat","Team pricing, no seat fees"],["Reveal","Only the contacts you choose"],["AI","Insights on each prospect"]].map(([v,l])=>(
                 <div key={l} style={{ borderTop:`1px solid rgba(255,255,255,.1)`, paddingTop:12 }}>
                   <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:26, color:T.cream, marginBottom:2 }}>{v}</div>
                   <div style={{ fontSize:11, color:T.inkm, letterSpacing:.3 }}>{l}</div>
@@ -2445,7 +2447,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                       <div style={{ minWidth:0 }}>
                         <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:2 }}>
                           <span style={{ fontSize:13, fontWeight:500, color:T.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.name}</span>
-                          {c.verified && <span style={{ fontSize:9, fontWeight:600, color:T.green, background:T.greenl, border:`1px solid ${T.greenb}`, padding:"1px 5px", borderRadius:2, letterSpacing:.5, flexShrink:0 }}>VERIFIED</span>}
+                          
                           {savedIds.has(c.id) && <span style={{ fontSize:10, color:T.amber, flexShrink:0 }}>★</span>}
                         </div>
                         <div style={{ fontSize:11, color:T.inkm, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.title}</div>
@@ -2518,7 +2520,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                 <div style={{ fontSize:13, fontWeight:500, color:T.green, marginBottom:16 }}>{selectedContact.company}</div>
                 <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
                   <ScorePill score={selectedContact.score} />
-                  {selectedContact.verified && <span style={{ fontSize:10, fontWeight:600, color:T.green, background:T.greenl, border:`1px solid ${T.greenb}`, padding:"2px 6px", borderRadius:2, letterSpacing:.5 }}>VERIFIED</span>}
+                  
                 </div>
                 {[["Industry",selectedContact.industry],["Location",selectedContact.location],["Employees",selectedContact.employees],["Revenue",selectedContact.revenue],["Seniority",selectedContact.seniority],["Department",selectedContact.department],
                   ["Email", revealedIds.has(selectedContact.id) ? (revealCache[selectedContact.id]?.email || "—") : (selectedContact.email || (useLiveData ? (revealCache[selectedContact.id]?.email ? "🔒 Click Reveal (button in the list row)" : "Not available for this contact") : "—"))],
