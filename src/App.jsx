@@ -2027,13 +2027,9 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                 </div>
               ))}
             </div>
-            <div style={{ borderTop:`1px solid rgba(255,255,255,.08)`, paddingTop:20 }}>
-              <div style={{ fontSize:13, color:"rgba(255,255,255,.5)", lineHeight:1.7, fontStyle:"italic", marginBottom:12 }}>"Zelvarix cut our prospecting time by 70%."</div>
-              <div style={{ fontSize:12, color:T.inkm }}>Jamie Morrison, VP of Sales · TechCorp</div>
-            </div>
           </div>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-            <div style={{ fontSize:11, color:"rgba(255,255,255,.15)", letterSpacing:.5 }}>Trusted by 12,000+ sales teams</div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,.15)", letterSpacing:.5 }}>Flat team pricing. No seat fees.</div>
             <button onClick={()=>setAppView("pricing")} style={{ fontSize:12, color:T.greenb, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", textDecoration:"underline" }}>View pricing →</button>
           </div>
         </div>
