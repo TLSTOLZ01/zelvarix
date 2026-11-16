@@ -2018,7 +2018,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
           <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:30, color:T.cream, letterSpacing:-.5 }}>Zelvarix<span style={{ color:T.greenb, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
           <div>
             <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:40, color:T.cream, lineHeight:1.15, letterSpacing:-.8, marginBottom:20 }}>Find your next best customer <span style={{ color:T.greenb, fontStyle:"italic" }}>with AI.</span></div>
-            <div style={{ fontSize:14, color:T.inkm, lineHeight:1.8, marginBottom:36 }}>Zelvarix combines a large B2B contact database with Claude AI to give your team the intelligence edge.</div>
+            <div style={{ fontSize:14, color:T.inkm, lineHeight:1.8, marginBottom:36 }}>Zelvarix is a B2B contact discovery tool for small and medium sales teams, with market search, direct contact reveal, and AI insights on each prospect.</div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:36 }}>
               {[["7 days","Free trial, no card"],["Flat","Team pricing, no seat fees"],["Reveal","Only the contacts you choose"],["AI","Insights on each prospect"]].map(([v,l])=>(
                 <div key={l} style={{ borderTop:`1px solid rgba(255,255,255,.1)`, paddingTop:12 }}>
