@@ -1,4 +1,4 @@
-shor{
+{
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "redirects": [
@@ -20,4 +20,3 @@ shor{
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
-t-prospect-list.html
