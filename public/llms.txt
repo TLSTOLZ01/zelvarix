@@ -12,6 +12,7 @@ Zelvarix covers US contacts only.
 ## Pages
 - [Home](https://www.zelvarix.ai/)
 - [How to build a prospect list](https://www.zelvarix.ai/guides/build-a-prospect-list)
+- [How to build a short prospect list](https://www.zelvarix.ai/guides/short-prospect-list)
 - [What to say in a first cold email](https://www.zelvarix.ai/guides/first-cold-email-examples)
 - [How a small sales team can prospect without an SDR](https://www.zelvarix.ai/blog/prospect-without-an-sdr)
 - [Terms](https://www.zelvarix.ai/terms)
