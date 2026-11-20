@@ -28,7 +28,7 @@ const REF_LABELS = {
   card: "Business card QR", deck: "Presentation deck QR",
   "apollo-alt": "SEO: Apollo alternative", "zoominfo-alt": "SEO: ZoomInfo alternative",
   listicle: "SEO: per-seat pricing list", "guide-prospect-list": "SEO: prospect list guide",
-  "guide-cold-email": "SEO: cold email guide", "seo-short-list": "SEO: short prospect list guide", newsletter: "Newsletter", linkedin: "LinkedIn",
+  "guide-cold-email": "SEO: cold email guide", "seo-short-list": "SEO: short prospect list guide", "seo-decision-maker-faq": "SEO: decision-maker contact info guide", newsletter: "Newsletter", linkedin: "LinkedIn",
   x: "X (Twitter)", "x-bio": "X profile link", "blog-sdr": "Blog: prospect without an SDR", "outbound-msp": "Outbound: MSP owners",
   "seo-home": "SEO: Homepage", "seo-pricing": "SEO: Pricing", "seo-faq": "SEO: FAQ", "seo-how-it-works": "SEO: How it works",
   "seo-msp": "SEO: MSP page", "seo-it-services": "SEO: IT services page", "seo-vs-seamless": "SEO: Seamless comparison",
@@ -539,9 +539,10 @@ export default function App() {
   const [adminStats, setAdminStats]     = useState(null);
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminError, setAdminError]     = useState("");
+  const [adminShowInternal, setAdminShowInternal] = useState(false);
   useEffect(() => {
-    if (view === "admin" && !adminStats && !adminLoading) loadAdminStats();
-  }, [view, adminStats, adminLoading]);
+    if (view === "admin") loadAdminStats(); // always fetch fresh when the tab opens
+  }, [view]);
 
   const [topUpLoading, setTopUpLoading]           = useState(null); // pack id being purchased
   const [planBusy, setPlanBusy]                   = useState(null); // plan id whose free trial is starting
@@ -3067,15 +3068,15 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                   <div style={{ background:T.greenl, border:`1px solid ${T.greenb}`, borderRadius:8, padding:"18px 20px" }}>
                     <div style={{ fontSize:12, color:T.green, marginBottom:6 }}>MRR</div>
                     <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:34, color:T.green }}>${adminStats.subscriptions.mrr.toLocaleString()}</div>
-                    <div style={{ fontSize:12, color:T.green, marginTop:4 }}>from active subscriptions</div>
+                    <div style={{ fontSize:12, color:T.green, marginTop:4 }}>paying subscriptions only (trials excluded)</div>
                   </div>
                   <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:"18px 20px" }}>
                     <div style={{ fontSize:12, color:T.inkm, marginBottom:6 }}>Trialing now</div>
                     <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:34, color:T.ink }}>{adminStats.subscriptions.trialing}</div>
-                    <div style={{ fontSize:12, color:T.inkm, marginTop:4 }}>{adminStats.trials.startedThisWeek} started this week · {adminStats.trials.startedThisMonth} this month</div>
+                    <div style={{ fontSize:12, color:T.inkm, marginTop:4 }}>{adminStats.trials.startedThisWeek} started this week · {adminStats.trials.startedThisMonth} this month · {adminStats.trials.expiredLast30d || 0} expired unconverted (30d)</div>
                   </div>
                   <div style={{ background:T.redl, border:`1px solid ${T.redb}`, borderRadius:8, padding:"18px 20px" }}>
-                    <div style={{ fontSize:12, color:T.red, marginBottom:6 }}>Cancellations</div>
+                    <div style={{ fontSize:12, color:T.red, marginBottom:6 }}>Cancellations (paid only)</div>
                     <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:34, color:T.red }}>{adminStats.cancellations.thisMonth}</div>
                     <div style={{ fontSize:12, color:T.red, marginTop:4 }}>this month · {adminStats.cancellations.thisWeek} this week · {adminStats.cancellations.churnRateThisMonthPct}% churn</div>
                   </div>
@@ -3105,9 +3106,65 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
                   </div>
                 )}
 
-                <div style={{ fontSize:12, color:T.inkmut, marginBottom:8 }}>Last updated {new Date(adminStats.generatedAt).toLocaleString()}</div>
+                {adminStats.funnel && (
+                  <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:"18px 20px", maxWidth:600, marginBottom:24 }}>
+                    <div style={{ fontSize:12, color:T.inkm, marginBottom:12 }}>Activation funnel (real users)</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 60px", rowGap:8, fontSize:13, color:T.ink }}>
+                      {[["Signed up", adminStats.funnel.signedUp], ["Revealed at least one contact", adminStats.funnel.revealedContact], ["Started a trial", adminStats.funnel.startedTrial], ["Paying", adminStats.funnel.paying]].map(([label, n]) => (
+                        <React.Fragment key={label}>
+                          <div>{label}</div>
+                          <div style={{ textAlign:"right", fontFamily:"'DM Mono',monospace" }}>{n}</div>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {adminStats.trialsEndingSoon && adminStats.trialsEndingSoon.length > 0 && (
+                  <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:"18px 20px", maxWidth:600, marginBottom:24 }}>
+                    <div style={{ fontSize:12, color:T.inkm, marginBottom:12 }}>Trials ending soon (email these people)</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 70px 80px", rowGap:8, fontSize:13, color:T.ink }}>
+                      {adminStats.trialsEndingSoon.map(t => (
+                        <React.Fragment key={t.email}>
+                          <div>{t.email}</div>
+                          <div style={{ textTransform:"capitalize" }}>{t.plan}</div>
+                          <div style={{ textAlign:"right", fontFamily:"'DM Mono',monospace" }}>{t.daysLeft}d left</div>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {adminStats.users && (
+                  <div style={{ background:"#fff", border:`1px solid ${T.border}`, borderRadius:8, padding:"18px 20px", marginBottom:24, overflowX:"auto" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+                      <div style={{ fontSize:12, color:T.inkm }}>Users ({adminStats.users.filter(u => adminShowInternal || !u.isInternal).length})</div>
+                      <label style={{ fontSize:12, color:T.inkm, cursor:"pointer" }}>
+                        <input type="checkbox" checked={adminShowInternal} onChange={e => setAdminShowInternal(e.target.checked)} style={{ marginRight:6 }} />
+                        Show internal / test accounts
+                      </label>
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"minmax(200px,2fr) 1.4fr 90px 100px 100px 70px", columnGap:12, rowGap:8, fontSize:13, color:T.ink, minWidth:760 }}>
+                      {["Email","Source","Plan / trial","Signed up","Last sign-in","Reveals"].map(h => (
+                        <div key={h} style={{ fontSize:11, color:T.inkmut }}>{h}</div>
+                      ))}
+                      {adminStats.users.filter(u => adminShowInternal || !u.isInternal).map(u => (
+                        <React.Fragment key={u.id}>
+                          <div style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.email}{u.isInternal ? " (internal)" : ""}</div>
+                          <div>{REF_LABELS[u.source] || u.source}</div>
+                          <div style={{ textTransform:"capitalize" }}>{u.plan ? (u.trialEnd && new Date(u.trialEnd) > new Date() ? `${u.plan} (trial)` : u.plan) : "none"}</div>
+                          <div style={{ fontFamily:"'DM Mono',monospace" }}>{u.signedUpAt ? new Date(u.signedUpAt).toLocaleDateString() : "—"}</div>
+                          <div style={{ fontFamily:"'DM Mono',monospace" }}>{u.lastSignInAt ? new Date(u.lastSignInAt).toLocaleDateString() : "—"}</div>
+                          <div style={{ fontFamily:"'DM Mono',monospace", textAlign:"right" }}>{u.revealsUsed}</div>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ fontSize:12, color:T.inkmut, marginBottom:8 }}>Last updated {new Date(adminStats.generatedAt).toLocaleString()}{adminStats.internalExcluded ? ` · ${adminStats.internalExcluded} internal/test accounts excluded from the numbers above` : ""}</div>
                 <div style={{ background:T.paper, border:`1px solid ${T.border}`, borderRadius:6, padding:"14px 18px", fontSize:13, color:T.inkm, maxWidth:600 }}>
-                  Cancellation counts come from Stripe's event log (last 30 days) since Supabase only stores current team state, not history. Site traffic and per-page performance live in <a href="https://search.google.com/search-console" target="_blank" rel="noopener" style={{ color:T.green, fontWeight:600 }}>Google Search Console</a>, not duplicated here.
+                  Subscription, trial and cancellation numbers come from Stripe, which keeps history; Supabase only stores current team state. A trial that ends without converting is counted as an expired trial, not a cancellation. Site traffic and per-page performance live in <a href="https://search.google.com/search-console" target="_blank" rel="noopener" style={{ color:T.green, fontWeight:600 }}>Google Search Console</a>, not duplicated here.
                 </div>
               </>
             )}
