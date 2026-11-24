@@ -1574,7 +1574,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
         <style>{GLOBAL_CSS}</style>
         {/* Nav */}
         <nav style={{ height:56, borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", padding:"0 40px", justifyContent:"space-between", background:"#fff", position:"sticky", top:0, zIndex:50 }}>
-          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:22, color:T.ink, letterSpacing:-.3 }}>Zelvarix<span style={{ color:T.green, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
+          <div style={{ fontFamily:"'Instrument Serif',serif", fontSize:26, color:T.ink, letterSpacing:-.3 }}>Zelvarix<span style={{ color:T.green, fontStyle:"italic", fontSize:"0.85em" }}>.ai</span></div>
           <div style={{ display:"flex", gap:16, alignItems:"center" }}>
             {currentUser && <button onClick={()=>setAppView("app")} style={{ fontSize:13, color:T.inkm, background:"none", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>← Back to app</button>}
             <button onClick={()=>{ setAppView("auth"); setAuthMode("login"); }} style={{ padding:"7px 16px", background:T.ink, border:"none", borderRadius:4, color:T.cream, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Sign in →</button>
@@ -1583,7 +1583,7 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
 
         {/* Product intro (Stage 1, restyled Nov 24): plain product statement above pricing. Text per facts sheet O1. */}
         <section style={{ maxWidth:880, margin:"0 auto", padding:"64px 24px 0", textAlign:"center" }}>
-          <h1 style={{ fontFamily:"'Instrument Serif',serif", fontWeight:400, fontSize:34, color:T.ink, lineHeight:1.2, letterSpacing:-.6, maxWidth:700, margin:"0 auto 32px" }}>
+          <h1 style={{ fontFamily:"'Instrument Serif',serif", fontWeight:400, fontSize:27, color:T.ink, lineHeight:1.3, letterSpacing:-.3, maxWidth:680, margin:"0 auto 28px" }}>
             Zelvarix is a B2B contact discovery tool for small and medium sales teams, with market search, direct contact reveal, and AI insights on each prospect.
           </h1>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))", gap:12, textAlign:"left" }}>
