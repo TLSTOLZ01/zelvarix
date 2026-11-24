@@ -1581,8 +1581,21 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
           </div>
         </nav>
 
+        {/* Product intro (Stage 1, Nov 24): plain product statement above pricing. Text per facts sheet O1. */}
+        <section style={{ maxWidth:680, margin:"0 auto", padding:"48px 24px 0" }}>
+          <p style={{ fontSize:18, color:T.ink, lineHeight:1.6, fontWeight:600, marginBottom:14 }}>
+            Zelvarix is a B2B contact discovery tool for small and medium sales teams, with market search, direct contact reveal, and AI insights on each prospect.
+          </p>
+          <ul style={{ fontSize:15, color:T.inkm, lineHeight:1.7, paddingLeft:20, margin:"0 0 10px" }}>
+            <li>Search by industry, company, title, seniority, state and more, or look up a person by name.</li>
+            <li>Reveal a contact's email and phone when you're ready to reach out.</li>
+            <li>Get ice breakers, a score and a draft email for each prospect. Zelvarix drafts only. You send it yourself.</li>
+          </ul>
+          <p style={{ fontSize:13, color:T.inkm, margin:0 }}>US contacts only.</p>
+        </section>
+
         {/* Hero */}
-        <section style={{ textAlign:"center", padding:"72px 24px 52px", maxWidth:680, margin:"0 auto" }}>
+        <section style={{ textAlign:"center", padding:"48px 24px 52px", maxWidth:680, margin:"0 auto" }}>
           <div style={{ fontSize:11, fontWeight:600, color:T.green, letterSpacing:2, textTransform:"uppercase", marginBottom:14 }}>Simple, transparent pricing</div>
           <h1 style={{ fontFamily:"'Instrument Serif',serif", fontSize:52, color:T.ink, lineHeight:1.05, letterSpacing:-1.5, marginBottom:14 }}>
             Pay for what you<br /><span style={{ color:T.green, fontStyle:"italic" }}>actually use.</span>
