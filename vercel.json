@@ -16,6 +16,7 @@
     { "source": "/guides/build-a-prospect-list", "destination": "/guides/build-a-prospect-list.html" },
     { "source": "/guides/first-cold-email-examples", "destination": "/guides/first-cold-email-examples.html" },
     { "source": "/guides/short-prospect-list", "destination": "/guides/short-prospect-list.html" },
+    { "source": "/guides/decision-maker-contact-info", "destination": "/guides/decision-maker-contact-info.html" },
     { "source": "/blog/(.*)", "destination": "/blog/$1.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
