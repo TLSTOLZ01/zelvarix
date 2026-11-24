@@ -1581,25 +1581,29 @@ Always be friendly, concise, and helpful. If you don't know something, say so ho
           </div>
         </nav>
 
-        {/* Product intro (Stage 1, Nov 24): plain product statement above pricing. Text per facts sheet O1. */}
-        <section style={{ maxWidth:680, margin:"0 auto", padding:"48px 24px 0" }}>
-          <p style={{ fontSize:18, color:T.ink, lineHeight:1.6, fontWeight:600, marginBottom:14 }}>
+        {/* Product intro (Stage 1, restyled Nov 24): plain product statement above pricing. Text per facts sheet O1. */}
+        <section style={{ maxWidth:880, margin:"0 auto", padding:"64px 24px 0", textAlign:"center" }}>
+          <h1 style={{ fontFamily:"'Instrument Serif',serif", fontWeight:400, fontSize:34, color:T.ink, lineHeight:1.2, letterSpacing:-.6, maxWidth:700, margin:"0 auto 32px" }}>
             Zelvarix is a B2B contact discovery tool for small and medium sales teams, with market search, direct contact reveal, and AI insights on each prospect.
-          </p>
-          <ul style={{ fontSize:15, color:T.inkm, lineHeight:1.7, paddingLeft:20, margin:"0 0 10px" }}>
-            <li>Search by industry, company, title, seniority, state and more, or look up a person by name.</li>
-            <li>Reveal a contact's email and phone when you're ready to reach out.</li>
-            <li>Get ice breakers, a score and a draft email for each prospect. Zelvarix drafts only. You send it yourself.</li>
-          </ul>
-          <p style={{ fontSize:13, color:T.inkm, margin:0 }}>US contacts only.</p>
+          </h1>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))", gap:12, textAlign:"left" }}>
+            {[
+              "Search by industry, company, title, seniority, state and more, or look up a person by name.",
+              "Reveal a contact's email and phone when you're ready to reach out.",
+              "Get ice breakers, a score and a draft email for each prospect. Zelvarix drafts only. You send it yourself."
+            ].map((t,i)=>(
+              <div key={i} style={{ background:"#fff", border:`1px solid ${T.border}`, borderTop:`3px solid ${T.green}`, borderRadius:6, padding:"16px 18px", fontSize:14, color:T.inkm, lineHeight:1.6 }}>{t}</div>
+            ))}
+          </div>
+          <p style={{ fontSize:12, color:T.inkm, marginTop:16, letterSpacing:.3 }}>US contacts only.</p>
         </section>
 
         {/* Hero */}
-        <section style={{ textAlign:"center", padding:"48px 24px 52px", maxWidth:680, margin:"0 auto" }}>
+        <section style={{ textAlign:"center", padding:"72px 24px 52px", maxWidth:680, margin:"0 auto" }}>
           <div style={{ fontSize:11, fontWeight:600, color:T.green, letterSpacing:2, textTransform:"uppercase", marginBottom:14 }}>Simple, transparent pricing</div>
-          <h1 style={{ fontFamily:"'Instrument Serif',serif", fontSize:52, color:T.ink, lineHeight:1.05, letterSpacing:-1.5, marginBottom:14 }}>
+          <h2 style={{ fontFamily:"'Instrument Serif',serif", fontSize:52, fontWeight:400, color:T.ink, lineHeight:1.05, letterSpacing:-1.5, marginBottom:14 }}>
             Pay for what you<br /><span style={{ color:T.green, fontStyle:"italic" }}>actually use.</span>
-          </h1>
+          </h2>
           <p style={{ fontSize:16, color:T.inkm, lineHeight:1.7, marginBottom:32 }}>
             7-day free trial on Starter and Pro. No card required.<br />Your trial includes 10 searches and 10 contact reveals.
           </p>
