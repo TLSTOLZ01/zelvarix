@@ -1,19 +1,23 @@
-# Zelvarix
-
-> Zelvarix is a B2B contact discovery tool for small and medium sales teams, with market search, direct contact reveal, and AI insights on each prospect.
-
-Zelvarix covers US contacts only.
-
-## What it does
-- Market search by industry, company name, company keyword, company size, seniority, department, state and city, or by a person's name.
-- Direct contact reveal: email and phone stay hidden until a contact is revealed.
-- AI insights on each prospect: ice breakers, a score and a draft email. Zelvarix drafts emails for copy and paste; it does not send emails.
-
-## Pages
-- [Home](https://www.zelvarix.ai/)
-- [How to build a prospect list](https://www.zelvarix.ai/guides/build-a-prospect-list)
-- [How to build a short prospect list](https://www.zelvarix.ai/guides/short-prospect-list)
-- [What to say in a first cold email](https://www.zelvarix.ai/guides/first-cold-email-examples)
-- [How a small sales team can prospect without an SDR](https://www.zelvarix.ai/blog/prospect-without-an-sdr)
-- [Terms](https://www.zelvarix.ai/terms)
-- [Privacy](https://www.zelvarix.ai/privacy)
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "redirects": [
+    { "source": "/card", "destination": "/?ref=card", "permanent": false },
+    { "source": "/deck", "destination": "/?ref=deck", "permanent": false },
+    { "source": "/compare/apollo-alternative", "destination": "/", "permanent": true },
+    { "source": "/compare/apollo-alternative.html", "destination": "/", "permanent": true },
+    { "source": "/compare/zoominfo-alternative", "destination": "/", "permanent": true },
+    { "source": "/compare/zoominfo-alternative.html", "destination": "/", "permanent": true },
+    { "source": "/compare/prospecting-tools-without-per-seat-pricing", "destination": "/", "permanent": true },
+    { "source": "/compare/prospecting-tools-without-per-seat-pricing.html", "destination": "/", "permanent": true }
+  ],
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/guides/build-a-prospect-list", "destination": "/guides/build-a-prospect-list.html" },
+    { "source": "/guides/first-cold-email-examples", "destination": "/guides/first-cold-email-examples.html" },
+    { "source": "/guides/short-prospect-list", "destination": "/guides/short-prospect-list.html" },
+    { "source": "/guides/decision-maker-contact-info", "destination": "/guides/decision-maker-contact-info.html" },
+    { "source": "/blog/(.*)", "destination": "/blog/$1.html" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
